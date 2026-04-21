@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary:   #0a0d14;
+  --bg-secondary: #111827;
+  --bg-card:      #1a2235;
+  --border:       #1e2d4a;
+  --text-primary: #f1f5f9;
+  --text-muted:   #64748b;
+  --accent:       #3b82f6;
+  --accent-hover: #2563eb;
+  --success:      #22c55e;
+  --warning:      #f59e0b;
+  --error:        #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+}
+
+/* Scrollbar custom */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Prose styles for agent responses */
+.prose-dark h1, .prose-dark h2, .prose-dark h3 {
+  color: #f1f5f9;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+.prose-dark p { margin-bottom: 0.75rem; line-height: 1.6; }
+.prose-dark ul, .prose-dark ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+.prose-dark li { margin-bottom: 0.25rem; }
+.prose-dark strong { color: #e2e8f0; }
+.prose-dark code {
+  background: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.875em;
+  color: #7dd3fc;
+}
+.prose-dark pre {
+  background: #1e293b;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+.prose-dark blockquote {
+  border-left: 3px solid #3b82f6;
+  padding-left: 1rem;
+  color: #94a3b8;
+  margin-bottom: 0.75rem;
+}
