@@ -47,23 +47,6 @@ export interface RecruitmentRequest {
   agents?:      Agent;
 }
 
-export interface Project {
-  id:         string;
-  title:      string;
-  brief:      string;
-  status:     'running' | 'completed' | 'paused';
-  created_at: string;
-}
-
-export interface ProjectLog {
-  id:         string;
-  project_id: string;
-  agent_id:   string | null;
-  agent_name: string;
-  message:    string;
-  log_type:   'system' | 'thinking' | 'output' | 'success' | 'error';
-  created_at: string;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,21 +83,6 @@ export async function saveMemory(
   });
 }
 
-export async function addProjectLog(
-  projectId: string,
-  agentName: string,
-  message:   string,
-  logType:   ProjectLog['log_type'],
-  agentId?:  string,
-): Promise<void> {
-  await supabaseAdmin.from('project_logs').insert({
-    project_id: projectId,
-    agent_id:   agentId ?? null,
-    agent_name: agentName,
-    message,
-    log_type:   logType,
-  });
-}
 
 export async function getAllAgents(): Promise<Agent[]> {
   const { data } = await supabaseAdmin
