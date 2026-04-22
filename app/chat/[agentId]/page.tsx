@@ -7,6 +7,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Agent, Memory } from '@/lib/supabase';
 
+type DelegationStatus = 'pending' | 'in_progress' | 'done' | 'error';
+
 interface Delegation {
   agentId?:         string;
   agentName:        string;
@@ -14,6 +16,7 @@ interface Delegation {
   agentAvatar?:     string;
   task:             string;
   delegateMessage?: string;
+  status?:          DelegationStatus;
   autoExecuted?:    boolean;
 }
 
@@ -43,66 +46,82 @@ function DelegationThread({ delegation, fromAgent, targetAgent, index, total }: 
   total?:      number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const status = delegation.status ?? 'done';
+
+  const statusConfig = {
+    pending:     { color: 'text-slate-500',  bg: 'bg-slate-500/8',    border: 'border-slate-500/15', dot: 'bg-slate-500',  label: 'En attente' },
+    in_progress: { color: 'text-amber-400',  bg: 'bg-amber-500/8',    border: 'border-amber-500/20', dot: 'bg-amber-400',  label: 'En cours...' },
+    done:        { color: 'text-violet-300', bg: 'bg-violet-500/8',   border: 'border-violet-500/20',dot: 'bg-violet-400', label: 'Terminé' },
+    error:       { color: 'text-red-400',    bg: 'bg-red-500/8',      border: 'border-red-500/20',   dot: 'bg-red-400',    label: 'Erreur' },
+  }[status];
 
   return (
-    <div className="mt-2 rounded-xl border border-violet-500/20 bg-[#130d1f] overflow-hidden animate-fade-in">
+    <div className={`mt-2 rounded-xl border ${statusConfig.border} ${statusConfig.bg} overflow-hidden animate-fade-in transition-all duration-500`}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3.5 py-2.5 bg-violet-500/8 border-b border-violet-500/15">
-        <span className="text-violet-400 text-sm">⚡</span>
-        <span className="text-xs font-bold text-violet-300">
-          {total && total > 1 ? `Mission ${(index ?? 0) + 1}/${total}` : 'Délégation automatique'}
-        </span>
-        <div className="flex items-center gap-1.5 ml-1 text-[11px] text-slate-400">
-          <span>{fromAgent.avatar} {fromAgent.name}</span>
-          <span className="text-slate-600">→</span>
-          <span>{targetAgent?.avatar ?? '🤖'} {delegation.agentName}</span>
-          {delegation.agentRole && (
-            <span className="text-slate-600">· {delegation.agentRole}</span>
+      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-white/5">
+        {/* Indicateur de statut */}
+        <div className="relative shrink-0">
+          <div className={`w-2.5 h-2.5 rounded-full ${statusConfig.dot}`} />
+          {status === 'in_progress' && (
+            <div className={`absolute inset-0 rounded-full ${statusConfig.dot} animate-ping opacity-60`} />
           )}
+        </div>
+        <span className={`text-xs font-bold ${statusConfig.color}`}>
+          {total && total > 1 ? `Mission ${(index ?? 0) + 1}/${total}` : 'Délégation'}
+          {' · '}{statusConfig.label}
+        </span>
+        <div className="flex items-center gap-1.5 ml-1 text-[11px] text-slate-500">
+          <span>{fromAgent.avatar}</span>
+          <span className="text-slate-700">→</span>
+          <span>{targetAgent?.avatar ?? '🤖'} {delegation.agentName}</span>
         </div>
       </div>
 
-      {/* Tâche briefée */}
-      <div className="px-3.5 py-2.5 border-b border-white/5">
-        <p className="text-[11px] text-slate-500 mb-1 uppercase tracking-wider font-semibold">Brief envoyé</p>
-        <p className="text-xs text-slate-300 leading-relaxed italic">"{delegation.task}"</p>
+      {/* Brief */}
+      <div className="px-3.5 py-2 border-b border-white/5">
+        <p className="text-[10px] text-slate-600 mb-1 uppercase tracking-wider font-semibold">Brief</p>
+        <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 italic">"{delegation.task}"</p>
       </div>
 
-      {/* Réponse de l'agent délégué */}
-      {delegation.delegateMessage && (
-        <div className="px-3.5 py-2.5 border-b border-white/5">
+      {/* Réponse */}
+      {status === 'in_progress' && (
+        <div className="px-3.5 py-2.5 flex items-center gap-2">
+          <span className="flex gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </span>
+          <span className="text-xs text-amber-400/70 italic">{delegation.agentName} travaille sur le livrable...</span>
+        </div>
+      )}
+
+      {status === 'done' && delegation.delegateMessage && (
+        <div className="px-3.5 py-2.5">
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
-              {targetAgent?.avatar ?? '🤖'} {delegation.agentName} a répondu
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+              ✓ Livrable de {delegation.agentName}
             </p>
-            <button
-              onClick={() => setExpanded(v => !v)}
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              {expanded ? 'Réduire ↑' : 'Voir le détail ↓'}
+            <button onClick={() => setExpanded(v => !v)} className="text-[11px] text-slate-500 hover:text-violet-400 transition-colors">
+              {expanded ? 'Réduire ↑' : 'Voir ↓'}
             </button>
           </div>
-          {expanded && (
-            <div className="prose-dark text-xs text-slate-400 leading-relaxed max-h-60 overflow-y-auto">
+          {expanded ? (
+            <div className="prose-dark text-xs text-slate-400 leading-relaxed max-h-64 overflow-y-auto">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{delegation.delegateMessage}</ReactMarkdown>
             </div>
+          ) : (
+            <p className="text-xs text-slate-500 line-clamp-2">{delegation.delegateMessage.slice(0, 130)}…</p>
           )}
-          {!expanded && (
-            <p className="text-xs text-slate-500 line-clamp-2">{delegation.delegateMessage.slice(0, 120)}…</p>
+          {delegation.agentId && (
+            <Link href={`/chat/${delegation.agentId}`} className="mt-2 inline-flex text-[11px] text-violet-400/70 hover:text-violet-300 transition-colors">
+              Ouvrir le chat avec {delegation.agentName} →
+            </Link>
           )}
         </div>
       )}
 
-      {/* Lien vers le chat de l'agent */}
-      {targetAgent && (
-        <div className="px-3.5 py-2 flex justify-end">
-          <Link
-            href={`/chat/${targetAgent.id}`}
-            className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
-          >
-            Voir le chat avec {targetAgent.name} →
-          </Link>
-        </div>
+      {status === 'error' && (
+        <div className="px-3.5 py-2 text-xs text-red-400/70 italic">Impossible de contacter {delegation.agentName}</div>
       )}
     </div>
   );
@@ -235,35 +254,83 @@ export default function ChatPage() {
     setSending(true);
 
     try {
+      // ── Étape 1 : réponse de l'agent + plan de délégation ──────────────
       const body: Record<string, unknown> = { agentId, message: messageText };
       if (fileToSend?.type === 'image') {
         body.imageData     = fileToSend.content;
         body.imageMimeType = fileToSend.mimeType;
       }
 
-      const res = await fetch('/api/chat', {
+      const res  = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessages(prev => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: `⚠️ Erreur : ${data.error ?? 'Réponse invalide'}`, timestamp: new Date().toISOString() }]);
+        return;
+      }
+
+      const hasDelegations = data.delegations && data.delegations.length > 0;
+      const msgId = `assistant-${Date.now()}`;
+
+      // Afficher la réponse initiale avec les cartes en attente
+      setMessages(prev => [...prev, {
+        id:          msgId,
+        role:        'assistant',
+        content:     data.message,
+        timestamp:   new Date().toISOString(),
+        delegations: hasDelegations
+          ? data.delegations.map((d: Delegation) => ({ ...d, status: 'pending' as DelegationStatus }))
+          : undefined,
+      }]);
+
+      if (!hasDelegations) return;
+
+      // ── Étape 2 : brief de chaque agent en parallèle (avec progress) ───
+      const updateDelegation = (agentName: string, patch: Partial<Delegation>) => {
+        setMessages(prev => prev.map(m => m.id !== msgId ? m : {
+          ...m,
+          delegations: m.delegations?.map(d =>
+            d.agentName === agentName ? { ...d, ...patch } : d,
+          ),
+        }));
+      };
+
+      const results = await Promise.all(
+        (data.delegations as Delegation[]).map(async (d) => {
+          updateDelegation(d.agentName, { status: 'in_progress' });
+          try {
+            const r = await fetch('/api/brief', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fromAgentName: agent?.name, agentName: d.agentName, agentRole: d.agentRole, task: d.task }),
+            });
+            const result = await r.json();
+            updateDelegation(d.agentName, { status: 'done', delegateMessage: result.message, agentId: result.agentId, agentAvatar: result.agentAvatar });
+            return { agentName: result.agentName ?? d.agentName, agentRole: result.agentRole ?? d.agentRole, message: result.message };
+          } catch {
+            updateDelegation(d.agentName, { status: 'error' });
+            return null;
+          }
+        }),
+      );
+
+      // ── Étape 3 : synthèse du manager ──────────────────────────────────
+      const validResults = results.filter(Boolean) as { agentName: string; agentRole: string; message: string }[];
+      if (validResults.length === 0) return;
+
+      const synthRes  = await fetch('/api/synthesize', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
+        body:    JSON.stringify({ agentId, results: validResults }),
       });
+      const synthData = await synthRes.json();
 
-      const data = await res.json();
-      if (res.ok) {
-        setMessages(prev => [...prev, {
-          id:          `tmp-assistant-${Date.now()}`,
-          role:        'assistant',
-          content:     data.message,
-          timestamp:   new Date().toISOString(),
-          delegations: data.delegations?.length ? data.delegations : undefined,
-        }]);
-      } else {
-        setMessages(prev => [...prev, {
-          id:        `tmp-error-${Date.now()}`,
-          role:      'assistant',
-          content:   `⚠️ Erreur : ${data.error ?? 'Réponse invalide du serveur'}`,
-          timestamp: new Date().toISOString(),
-        }]);
-      }
+      setMessages(prev => [...prev, {
+        id:        `synth-${Date.now()}`,
+        role:      'assistant',
+        content:   synthData.message ?? '(Synthèse indisponible)',
+        timestamp: new Date().toISOString(),
+      }]);
     } finally {
       setSending(false);
       inputRef.current?.focus();
