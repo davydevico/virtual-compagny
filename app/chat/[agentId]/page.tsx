@@ -5,7 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Image from 'next/image';
 import type { Agent, Memory } from '@/lib/supabase';
+import { avatarUrl } from '@/lib/avatar';
 
 type DelegationStatus = 'pending' | 'in_progress' | 'done' | 'error';
 
@@ -54,14 +56,18 @@ function DelegationRow({ delegation, fromAgent, targetAgent }: {
     error:       { border: 'border-red-500/25',     bg: 'bg-red-950/30',      dot: 'bg-red-400',     ping: false,  label: 'Erreur',        labelColor: 'text-red-400' },
   }[status];
 
-  const avatar = targetAgent?.avatar ?? '🤖';
-
   return (
     <div className={`flex gap-2.5 animate-slide-up`}>
       {/* Avatar de l'agent délégué */}
       <div className="relative shrink-0 mt-0.5">
-        <div className={`w-8 h-8 rounded-full bg-[#1a2235] border ${cfg.border} flex items-center justify-center text-sm`}>
-          {avatar}
+        <div className={`w-8 h-8 rounded-full bg-[#1a2235] border ${cfg.border} overflow-hidden`}>
+          <Image
+            src={avatarUrl(delegation.agentName)}
+            alt={delegation.agentName}
+            width={32} height={32}
+            className="w-full h-full object-cover"
+            unoptimized
+          />
         </div>
         {cfg.ping && (
           <span className={`absolute inset-0 rounded-full ${cfg.dot} opacity-30 animate-ping`} />
@@ -151,16 +157,29 @@ export default function ChatPage() {
   const [sending, setSending]         = useState(false);
   const [loading, setLoading]         = useState(true);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLTextAreaElement>(null);
-  const fileRef        = useRef<HTMLInputElement>(null);
+  const messagesEndRef   = useRef<HTMLDivElement>(null);
+  const messagesAreaRef  = useRef<HTMLDivElement>(null);
+  const inputRef         = useRef<HTMLTextAreaElement>(null);
+  const fileRef          = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  // Afficher le bouton "↓" quand on est à plus de 150px du bas
+  const handleScroll = () => {
+    const el = messagesAreaRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distFromBottom > 150);
+  };
+
+  useEffect(() => { scrollToBottom('instant'); }, []); // scroll instantané au chargement
+  useEffect(() => {
+    if (!showScrollBtn) scrollToBottom(); // auto-scroll seulement si déjà en bas
+  }, [messages, showScrollBtn]);
 
   // ── Sauvegarde session localStorage quand les messages changent ──────────
   useEffect(() => {
@@ -450,8 +469,7 @@ export default function ChatPage() {
   };
 
   return (
-    /* h-full + flex-col : remplit exactement l'espace dispo dans <main> sans déborder */
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-3 md:px-5 py-3 border-b border-[#1e2d4a] flex items-center gap-3 bg-[#080b12]/80 backdrop-blur-sm">
@@ -472,10 +490,10 @@ export default function ChatPage() {
               <span className="absolute inset-0 rounded-xl animate-pulse bg-violet-500/15" />
             </>
           )}
-          <div className={`w-10 h-10 rounded-xl bg-[#0a0d14] flex items-center justify-center text-xl transition-all duration-300 ${
+          <div className={`w-10 h-10 rounded-xl bg-[#0a0d14] overflow-hidden transition-all duration-300 ${
             sending ? 'border-2 border-violet-500/60 shadow-lg shadow-violet-500/20' : 'border border-[#1e2d4a]'
           }`}>
-            {agent.avatar}
+            <Image src={avatarUrl(agent.name)} alt={agent.name} width={40} height={40} className="w-full h-full object-cover" unoptimized />
           </div>
           {sending ? (
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-violet-500 border-2 border-[#0d1117] animate-pulse" />
@@ -512,10 +530,16 @@ export default function ChatPage() {
       </div>
 
       {/* ── MESSAGES — min-h-0 crucial pour que flex-1 puisse scroller ──────── */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 md:px-5 py-4 space-y-4">
+      <div
+        ref={messagesAreaRef}
+        onScroll={handleScroll}
+        className="relative flex-1 overflow-y-auto min-h-0 px-3 md:px-5 py-4 space-y-4"
+      >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-            <div className="text-5xl mb-3">{agent.avatar}</div>
+            <div className="w-20 h-20 rounded-2xl overflow-hidden mb-3 border border-white/8 shadow-xl mx-auto">
+              <Image src={avatarUrl(agent.name, 160)} alt={agent.name} width={80} height={80} className="w-full h-full object-cover" unoptimized />
+            </div>
             <h3 className="text-base font-semibold text-white mb-1">Bonjour, je suis {agent.name}</h3>
             <p className="text-sm text-slate-400 max-w-xs">{agent.role} chez SURGIFLOW.</p>
             <p className="text-xs text-slate-600 mt-1">Joindre fichier ou image via 📎</p>
@@ -537,29 +561,30 @@ export default function ChatPage() {
           return (
             <div key={msg.id} className={`flex gap-2 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
-              <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm shrink-0 mt-5 ${
-                msg.role === 'user'
-                  ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
-                  : 'bg-[#1a2235] border border-[#1e2d4a]'
-              }`}>
-                {msg.role === 'user' ? 'D' : agent.avatar}
-              </div>
+              {msg.role === 'user' ? (
+                <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0 mt-5">
+                  D
+                </div>
+              ) : (
+                <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#1a2235] border border-[#1e2d4a] overflow-hidden shrink-0 mt-5">
+                  <Image src={avatarUrl(agent.name)} alt={agent.name} width={32} height={32} className="w-full h-full object-cover" unoptimized />
+                </div>
+              )}
 
-              <div className={`max-w-[82%] md:max-w-[72%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`${msg.role === 'assistant' ? 'w-[82%] md:w-[72%]' : 'max-w-[82%] md:max-w-[72%]'} flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'} min-w-0`}>
                 <p className={`text-[10px] md:text-[11px] font-semibold px-1 ${
                   msg.role === 'user' ? 'text-slate-500 text-right' : `${deptColors[agent.department] ?? 'text-slate-400'}`
                 }`}>
                   {msg.role === 'user' ? 'Davy — CEO' : `${agent.name} — ${agent.role}`}
                 </p>
 
-                <div className={`rounded-2xl px-3 md:px-4 py-2.5 md:py-3 overflow-hidden ${
+                <div className={`rounded-2xl px-3 md:px-4 py-2.5 md:py-3 ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-tr-sm'
                     : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
                 }`}>
                   {msg.role === 'assistant' ? (
-                    /* overflow-x-auto sur le wrapper pour que les blocs code scrollent horizontalement */
-                    <div className="prose-dark text-sm overflow-x-auto">
+                    <div className="prose-dark text-sm min-w-0">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
@@ -598,8 +623,8 @@ export default function ChatPage() {
         {/* Indicateur de frappe */}
         {sending && (
           <div className="flex gap-2 animate-fade-in">
-            <div className="w-7 h-7 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-xs shrink-0 mt-5">
-              {agent.avatar}
+            <div className="w-7 h-7 rounded-full bg-[#1a2235] border border-[#1e2d4a] overflow-hidden shrink-0 mt-5">
+              <Image src={avatarUrl(agent.name)} alt={agent.name} width={28} height={28} className="w-full h-full object-cover" unoptimized />
             </div>
             <div className="flex flex-col gap-1">
               <p className={`text-[10px] font-semibold px-1 ${deptColors[agent.department] ?? 'text-slate-400'}`}>
@@ -621,6 +646,19 @@ export default function ChatPage() {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* ── BOUTON SCROLL TO BOTTOM ─────────────────────────────────────────── */}
+      {showScrollBtn && (
+        <button
+          onClick={() => scrollToBottom()}
+          className="absolute bottom-24 right-4 z-20 w-9 h-9 rounded-full bg-[#1a2235] border border-[#2d4066] text-slate-300 hover:text-white hover:border-blue-500/50 hover:bg-[#1e2d4a] shadow-lg transition-all duration-200 flex items-center justify-center animate-fade-in"
+          title="Aller en bas"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      )}
 
       {/* ── INPUT — shrink-0 : ne bouge jamais, reste toujours en bas ──────── */}
       <div className="shrink-0 border-t border-[#1e2d4a] bg-[#080b12] px-3 md:px-5 pt-2 pb-3 md:py-4">

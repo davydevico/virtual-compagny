@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 const nav = [
   { href: '/dashboard', label: 'Dashboard',   icon: 'grid' },
   { href: '/recruit',   label: 'Recrutement', icon: 'users' },
-  { href: '/project',   label: 'Projets',     icon: 'rocket' },
+  { href: '/project',   label: 'Missions',    icon: 'rocket' },
 ];
 
 function Icon({ name, className = 'w-5 h-5' }: { name: string; className?: string }) {

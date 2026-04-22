@@ -62,7 +62,10 @@ html, body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   margin-bottom: 0.75rem;
-  max-width: 100%;
+  /* Permet au bloc de dépasser la largeur de la bulle et de scroller */
+  width: 100%;
+  max-width: calc(100vw - 5rem);
+  white-space: pre;
 }
 /* Force le wrap des mots longs hors blocs code */
 .prose-dark p, .prose-dark li {

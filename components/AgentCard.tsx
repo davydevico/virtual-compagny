@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Agent } from '@/lib/supabase';
+import { avatarUrl } from '@/lib/avatar';
 
 interface AgentCardProps {
   agent:     Agent;
@@ -29,8 +31,15 @@ export default function AgentCard({ agent, showChat = true }: AgentCardProps) {
       <div className="flex items-start gap-3">
         {/* Avatar */}
         <div className="relative shrink-0">
-          <div className="w-11 h-11 rounded-2xl bg-[#0a0e1a] border border-white/8 flex items-center justify-center text-2xl shadow-inner">
-            {agent.avatar}
+          <div className="w-12 h-12 rounded-2xl bg-[#0a0e1a] border border-white/8 overflow-hidden shadow-inner">
+            <Image
+              src={avatarUrl(agent.name, 96)}
+              alt={agent.name}
+              width={48}
+              height={48}
+              className="w-full h-full object-cover"
+              unoptimized
+            />
           </div>
           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#161b27] shadow-sm ${status.dot}`} />
         </div>

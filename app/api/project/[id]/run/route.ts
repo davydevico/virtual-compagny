@@ -33,65 +33,63 @@ export async function POST(
 
     const tasks = await orchestrateProject(project.brief, agents);
 
-    await addProjectLog(
-      projectId,
-      'Orchestrateur',
-      `${tasks.length} tâche${tasks.length > 1 ? 's' : ''} identifiée${tasks.length > 1 ? 's' : ''} pour : ${tasks.map(t => t.agentName).join(', ')}`,
-      'system',
-    );
-
-    const outputs: Record<string, string> = {};
-
-    for (const task of tasks) {
-      try {
-        await addProjectLog(
-          projectId,
-          task.agentName,
-          `Traitement : ${task.task}`,
-          'thinking',
-          task.agentId,
-        );
-
-        const previousOutputs = Object.entries(outputs)
-          .map(([name, out]) => `### ${name} :\n${out}`)
-          .join('\n\n');
-
-        const contextualMessage = previousOutputs
-          ? `${task.task}\n\n## Contexte des équipes précédentes :\n${previousOutputs}`
-          : task.task;
-
-        const response = await callAgent(
-          task.agentId,
-          contextualMessage,
-          projectId,
-          `Tu travailles sur le projet : "${project.brief}"`,
-        );
-
-        outputs[task.agentName] = response.message;
-
-        await addProjectLog(
-          projectId,
-          task.agentName,
-          response.message,
-          'output',
-          task.agentId,
-        );
-      } catch (taskErr) {
-        console.error(`Erreur tâche ${task.agentName}:`, taskErr);
-        await addProjectLog(
-          projectId,
-          task.agentName,
-          `Erreur lors du traitement de la tâche : ${taskErr instanceof Error ? taskErr.message : 'Erreur inconnue'}`,
-          'error',
-          task.agentId,
-        );
-      }
+    if (tasks.length === 0) {
+      await addProjectLog(projectId, 'Système', "L'orchestrateur n'a assigné aucune tâche. Brief peut-être trop vague ou réponse Claude invalide.", 'error');
+      await supabaseAdmin.from('projects').update({ status: 'paused' }).eq('id', projectId);
+      return NextResponse.json({ error: 'Aucune tâche générée' }, { status: 400 });
     }
 
     await addProjectLog(
       projectId,
+      'Orchestrateur',
+      `${tasks.length} tâche${tasks.length > 1 ? 's' : ''} assignée${tasks.length > 1 ? 's' : ''} à : ${tasks.map(t => t.agentName).join(', ')}`,
+      'system',
+    );
+
+    // Exécution parallèle de tous les agents
+    const results = await Promise.allSettled(
+      tasks.map(async (task) => {
+        await addProjectLog(projectId, task.agentName, `Traitement : ${task.task}`, 'thinking', task.agentId);
+
+        // Timeout de 22s par agent pour rester sous la limite Netlify (26s)
+        const agentPromise = callAgent(
+          task.agentId,
+          task.task,
+          projectId,
+          `Tu travailles sur le projet : "${project.brief}"`,
+          { maxTokens: 1024, saveUserMessage: false },
+        );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout agent (22s)')), 22_000),
+        );
+        const response = await Promise.race([agentPromise, timeoutPromise]);
+
+        await addProjectLog(projectId, task.agentName, response.message, 'output', task.agentId);
+        return { name: task.agentName, message: response.message };
+      }),
+    );
+
+    const successes = results.filter(r => r.status === 'fulfilled').length;
+    const failures  = results.filter(r => r.status === 'rejected');
+
+    // Log chaque agent ayant échoué — visible dans l'UI
+    await Promise.all(failures.map(async (r, i) => {
+      const err = r.status === 'rejected' ? r.reason : null;
+      const taskName = tasks[i]?.agentName ?? `Agent #${i}`;
+      console.error(`Erreur agent ${taskName}:`, err);
+      await addProjectLog(
+        projectId,
+        taskName,
+        `Erreur : ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+        tasks[i]?.agentId,
+      ).catch(() => {});
+    }));
+
+    await addProjectLog(
+      projectId,
       'Système',
-      `✅ Projet complété — ${Object.keys(outputs).length} agent${Object.keys(outputs).length > 1 ? 's' : ''} ont contribué.`,
+      `✅ Mission complétée — ${successes} agent${successes > 1 ? 's' : ''} ont contribué.`,
       'success',
     );
 
@@ -100,7 +98,7 @@ export async function POST(
       .update({ status: 'completed' })
       .eq('id', projectId);
 
-    return NextResponse.json({ success: true, tasksCount: tasks.length });
+    return NextResponse.json({ success: true, tasksCount: tasks.length, successes });
   } catch (err) {
     console.error('[/api/project/[id]/run]', err);
 

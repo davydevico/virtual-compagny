@@ -25,6 +25,18 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  try {
+    const { projectId } = await req.json();
+    if (!projectId) return NextResponse.json({ error: 'projectId requis' }, { status: 400 });
+    await supabaseAdmin.from('project_logs').delete().eq('project_id', projectId);
+    await supabaseAdmin.from('projects').delete().eq('id', projectId);
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
 // Crée uniquement le projet et retourne l'id immédiatement.
 // L'orchestration est déclenchée ensuite depuis le client via POST /api/project/[id]/run.
 export async function POST(req: NextRequest) {

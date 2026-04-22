@@ -6,12 +6,13 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 async function getStats() {
-  const [agents, pending, projects] = await Promise.all([
+  const [agents, pending, memoriesRes] = await Promise.all([
     getAllAgents(),
     getPendingRecruitments(),
-    supabaseAdmin.from('projects').select('id, status').then(r => r.data ?? []),
+    supabaseAdmin.from('memories').select('id', { count: 'exact', head: true }),
   ]);
-  return { agents, pending, projects };
+  const totalMessages = memoriesRes.count ?? 0;
+  return { agents, pending, totalMessages };
 }
 
 const DEPT_ORDER  = ['Tech', 'Finance', 'Marketing', 'Design', 'Opérations'];
@@ -24,16 +25,16 @@ const DEPT_COLORS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const { agents, pending, projects } = await getStats();
+  const { agents, pending, totalMessages } = await getStats();
 
   const departments: Record<string, typeof agents> = {};
   for (const agent of agents) {
     if (!departments[agent.department]) departments[agent.department] = [];
     departments[agent.department].push(agent);
   }
-  const sortedDepts = DEPT_ORDER.filter(d => departments[d]);
-  const running = projects.filter(p => p.status === 'running').length;
-  const done    = projects.filter(p => p.status === 'completed').length;
+  const sortedDepts  = DEPT_ORDER.filter(d => departments[d]);
+  const managers     = agents.filter(a => ['CTO','CFO','CMO','COO'].some(t => a.role.includes(t)) || a.manager_id === null).length;
+  const conversations = Math.floor(totalMessages / 2); // paires user+assistant
 
   return (
     <div className="min-h-screen">
@@ -56,10 +57,10 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="px-4 md:px-6 pt-4 md:pt-5 pb-2 grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Agents actifs"    value={agents.length}      icon="👥" color="blue"   />
-        <StatCard label="Départements"     value={sortedDepts.length} icon="🏗️" color="violet" />
-        <StatCard label="En cours"         value={running}            icon="⚡" color="amber"  />
-        <StatCard label="Terminés"         value={done}               icon="✅" color="emerald" />
+        <StatCard label="Agents recrutés"     value={agents.length}      icon="👥" color="blue"   />
+        <StatCard label="Départements"        value={sortedDepts.length} icon="🏢" color="violet" />
+        <StatCard label="Managers C-Level"    value={managers}           icon="⭐" color="amber"  />
+        <StatCard label="Messages échangés"   value={conversations}      icon="💬" color="emerald" />
       </div>
 
       {/* Agents par département */}

@@ -3,6 +3,12 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
   },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'randomuser.me' },
+      { protocol: 'https', hostname: 'api.dicebear.com' },
+    ],
+  },
   eslint: {
     ignoreDuringBuilds: false,
   },

@@ -286,35 +286,22 @@ export async function orchestrateProject(
     .map(a => `- ${a.name} (${a.role}, ${a.department}) [id: ${a.id}]`)
     .join('\n');
 
-  const systemPrompt = `Tu es l'orchestrateur de SURGIFLOW Company OS.
-Ton rôle : décomposer un brief CEO en tâches concrètes pour chaque équipe concernée.
-
-## Agents disponibles :
-${agentList}
-
-## Instructions :
-Retourne un JSON valide (tableau) avec exactement ce format :
-[
-  {
-    "agentId": "uuid-de-l-agent",
-    "agentName": "Prénom",
-    "department": "Département",
-    "task": "Description précise de la tâche pour cet agent"
-  }
-]
-
-Ne réponds qu'avec le JSON, sans markdown, sans explication.
-Sélectionne uniquement les agents pertinents pour le brief (3 à 6 agents max).`;
+  const systemPrompt = `Orchestrateur SURGIFLOW. Décompose le brief en tâches JSON, 3 agents max.
+Agents: ${agentList}
+Format strict (JSON array uniquement, zéro markdown):
+[{"agentId":"uuid","agentName":"Prénom","department":"Dept","task":"tâche courte"}]`;
 
   const raw = await callClaudeRaw(systemPrompt, [
-    { role: 'user', content: `Brief CEO : "${brief}"\n\nDécompose ce brief en tâches par agent.` },
-  ], 1024);
+    { role: 'user', content: `Brief: "${brief}"` },
+  ], 512);
 
   try {
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleaned) as ProjectTask[];
+    const tasks = JSON.parse(cleaned) as ProjectTask[];
+    // Limite à 3 agents pour tenir dans le timeout Netlify (26s)
+    return tasks.slice(0, 3);
   } catch {
-    throw new Error(`Erreur parsing orchestration : ${raw}`);
+    throw new Error(`Erreur parsing orchestration : ${raw.slice(0, 200)}`);
   }
 }
 
