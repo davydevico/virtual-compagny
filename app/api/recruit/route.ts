@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateRecruitmentRequests } from '@/lib/claude';
-import { supabaseAdmin, getAllAgents, getAgentById } from '@/lib/supabase';
+import { supabaseAdmin, getAllAgents } from '@/lib/supabase';
 
-// POST : recruter un agent C-Level → génère les demandes de recrutement subordonnés
 export async function POST(req: NextRequest) {
   try {
     const { name, role, department, avatar, personality, knowledge } = await req.json();
@@ -14,7 +13,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Créer l'agent en DB
     const { data: agent, error: agentErr } = await supabaseAdmin
       .from('agents')
       .insert({
@@ -33,7 +31,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Erreur création agent' }, { status: 500 });
     }
 
-    // Générer les demandes de recrutement pour ses subordonnés
     const existingAgents = await getAllAgents();
     const existingRoles  = existingAgents.map(a => a.role);
 
@@ -61,7 +58,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET : liste toutes les demandes en attente
 export async function GET() {
   const { data } = await supabaseAdmin
     .from('recruitment_requests')
@@ -80,7 +76,6 @@ export async function GET() {
   return NextResponse.json(data ?? []);
 }
 
-// PATCH : approuver ou refuser une demande
 export async function PATCH(req: NextRequest) {
   try {
     const { id, action, agentData } = await req.json();
@@ -108,10 +103,6 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 });
       }
 
-      // Récupérer le manager (requester)
-      const manager = await getAgentById(request.requester_id);
-
-      // Créer le nouvel agent
       const { data: newAgent, error: agentErr } = await supabaseAdmin
         .from('agents')
         .insert({
@@ -131,7 +122,6 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Erreur création agent' }, { status: 500 });
       }
 
-      // Marquer la demande comme approuvée
       await supabaseAdmin
         .from('recruitment_requests')
         .update({ status: 'approved' })
