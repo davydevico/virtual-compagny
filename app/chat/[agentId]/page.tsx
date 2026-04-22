@@ -406,9 +406,32 @@ export default function ChatPage() {
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 )}
-                <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
-                  {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                <div className={`flex items-center justify-between mt-2 gap-3`}>
+                  <p className={`text-xs ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
+                    {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {/* Bouton téléchargement pour les messages avec du contenu technique */}
+                  {msg.role === 'assistant' && msg.content.includes('```') && (
+                    <button
+                      onClick={() => {
+                        const filename = `${agent.name.toLowerCase()}-livrable-${new Date(msg.timestamp).toISOString().slice(0,10)}.md`;
+                        const header = `# Livrable — ${agent.name} (${agent.role})\n_${new Date(msg.timestamp).toLocaleString('fr-FR')}_\n\n---\n\n`;
+                        const blob = new Blob([header + msg.content], { type: 'text/markdown' });
+                        const url  = URL.createObjectURL(blob);
+                        const a    = document.createElement('a');
+                        a.href = url; a.download = filename; a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                      title="Télécharger en .md"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      .md
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Threads de délégation auto-exécutés */}
