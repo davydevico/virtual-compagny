@@ -116,7 +116,7 @@ export default function Sidebar() {
   return (
     <>
       {/* ── DESKTOP sidebar ── */}
-      <aside className="hidden md:flex w-60 min-h-screen bg-[#0d1117] border-r border-white/5 flex-col shrink-0">
+      <aside className="hidden md:flex w-60 h-screen sticky top-0 bg-[#0d1117] border-r border-white/5 flex-col shrink-0">
         {sidebarContent}
       </aside>
 

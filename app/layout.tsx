@@ -13,9 +13,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={inter.variable}>
-      <body className="flex min-h-screen bg-[#080b12] antialiased">
+      <body className="flex h-screen bg-[#080b12] antialiased overflow-hidden">
         <Sidebar />
-        {/* Décalage top sur mobile pour la top bar fixe */}
         <main className="flex-1 overflow-auto pt-14 md:pt-0 min-w-0">
           {children}
         </main>
