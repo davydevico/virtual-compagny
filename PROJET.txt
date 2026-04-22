@@ -1,0 +1,184 @@
+SURGIFLOW COMPANY OS — Description du projet
+=============================================
+
+SURGIFLOW est une plateforme SaaS B2B de suivi péri-opératoire (J-15 à J+15)
+qui automatise la communication chirurgien-patient via SMS/WhatsApp.
+
+Ce projet est l'OS interne de SURGIFLOW : une application web permettant
+au CEO (Davy) de gérer une équipe de 13 agents IA virtuels spécialisés,
+chacun ayant une expertise métier, une mémoire persistante, et la capacité
+de collaborer sur des projets concrets.
+
+
+STACK TECHNIQUE
+---------------
+- Frontend  : Next.js 14 + TypeScript + Tailwind CSS (thème sombre)
+- Base de données : Supabase (PostgreSQL)
+- LLM : Claude API (claude-sonnet-4-20250514)
+- Déploiement : Vercel
+
+
+BASE DE DONNÉES (5 tables Supabase)
+------------------------------------
+- agents : profil de chaque agent (nom, rôle, département, avatar, prompt système, manager)
+- memories : historique de tous les échanges CEO ↔ agent (mémoire persistante)
+- recruitment_requests : demandes de recrutement générées par les C-Levels
+- projects : projets lancés par le CEO avec leur statut
+- project_logs : logs en temps réel de l'exécution multi-agents
+
+
+LES 13 AGENTS (avec prompts SURGIFLOW détaillés)
+-------------------------------------------------
+Tech :
+  - Marcus — CTO
+  - Léa — Développeuse Frontend (React/TypeScript)
+  - Omar — Développeur Backend (Firebase/Firestore)
+  - Samy — DevOps (CI/CD, infrastructure)
+  - Nina — QA Médical (conformité, tests)
+
+Finance :
+  - Rachel — CFO
+  - Pierre — Comptable
+  - Julie — Analyste Financier
+
+Marketing :
+  - Sophie — CMO
+  - Tom — Expert SEO Médical
+
+Design :
+  - Inès — Lead Designer UI/UX Médical
+
+Opérations :
+  - David — COO
+  - Camille — Customer Success Manager
+  - Alex — Product Manager
+
+Chaque agent a un prompt système complet qui décrit :
+  - Qui il est et son expertise
+  - Sa connaissance de SURGIFLOW (stack, modèle de données, marchés FR/IL)
+  - Son ton et sa façon de travailler
+  - Ses responsabilités et priorités actuelles
+
+
+FONCTIONNALITÉS
+---------------
+
+1. DASHBOARD (app/dashboard/page.tsx)
+   - Vue organigramme de toute l'équipe groupée par département
+   - Statut de chaque agent (actif, en mission)
+   - Stats globales (nombre d'agents, projets en cours, projets terminés)
+   - Alerte si des demandes de recrutement sont en attente
+   - Skeleton loading animé pendant le chargement
+
+2. RECRUTEMENT (app/recruit/page.tsx)
+   - Le CEO recrute directement les 5 C-Levels (Marcus, Rachel, Sophie, Inès, David)
+   - À chaque recrutement, Claude génère automatiquement 2-4 demandes de recrutement
+     pour les subordonnés de ce C-Level
+   - Les demandes arrivent dans un panneau de validation
+   - CEO approuve ou refuse chaque demande (bouton individuel ou "Tout approuver")
+   - À l'approbation, l'agent est créé en DB et devient actif
+   - Toasts de feedback, loading states, gestion des erreurs réseau
+
+3. CHAT 1-TO-1 (app/chat/[agentId]/page.tsx)
+   - Interface chat avec n'importe quel agent de l'équipe
+   - Mémoire persistante : l'agent relit ses derniers échanges avec le CEO avant de répondre
+   - Les réponses sont en Markdown (rendu avec react-markdown)
+   - Textarea auto-resize, indicateur de frappe animé
+   - Rollback du message si erreur réseau
+   - Bouton pour effacer l'affichage (la mémoire reste en DB)
+
+4. PROJETS MULTI-AGENTS (app/project/page.tsx)
+   Architecture en 2 étapes pour un vrai temps réel :
+   Étape 1 : POST /api/project/create → crée le projet en DB, retourne l'ID immédiatement
+   Étape 2 : POST /api/project/[id]/run → lance l'orchestration Claude (peut durer plusieurs minutes)
+
+   Pendant l'étape 2, le client poll /api/project/[id]/logs toutes les 1.5s
+   et affiche les logs en temps réel.
+
+   Flow d'orchestration :
+   - Claude décompose le brief en tâches par agent (3 à 6 agents)
+   - Chaque agent traite sa tâche dans l'ordre
+   - Chaque agent reçoit les outputs des agents précédents comme contexte
+   - Les logs sont typés : system / thinking / output / success / error
+   - Timeout Vercel configuré à 300s (5 minutes)
+
+
+APPELS CLAUDE API (lib/claude.ts)
+----------------------------------
+Chaque appel suit ce pattern :
+1. Récupérer le profil de l'agent depuis Supabase
+2. Récupérer les 20 derniers messages depuis memories
+3. Construire le system prompt : personality + knowledge SURGIFLOW
+4. Appeler claude-sonnet-4-20250514
+5. Sauvegarder user message + réponse en memories
+6. Retourner la réponse
+
+Fonctions principales :
+- callAgent() : appel avec mémoire persistante (chat et projets)
+- callClaudeRaw() : appel sans persistance (orchestration interne)
+- orchestrateProject() : demande à Claude de décomposer un brief en tâches JSON
+- generateRecruitmentRequests() : génère les demandes de recrutement d'un C-Level
+
+
+STRUCTURE DES FICHIERS
+----------------------
+app/
+  api/
+    agents/route.ts          → GET liste tous les agents
+    agents/[id]/route.ts     → GET un agent par ID
+    chat/route.ts            → POST appel Claude pour le chat
+    project/route.ts         → GET liste des projets
+    project/create/route.ts  → POST créer un projet (retourne ID immédiatement)
+    project/[id]/run/route.ts→ POST lancer l'orchestration multi-agents
+    project/[id]/logs/route.ts → GET logs d'un projet
+    memories/[agentId]/route.ts → GET historique d'un agent
+    recruit/route.ts         → GET/POST/PATCH recrutement
+  dashboard/
+    page.tsx                 → vue équipe organigramme
+    loading.tsx              → skeleton loading
+  recruit/page.tsx           → recrutement + validation
+  project/page.tsx           → lancement projet + logs temps réel
+  chat/[agentId]/page.tsx    → chat avec un agent
+  layout.tsx                 → layout global avec sidebar
+  not-found.tsx              → page 404
+  error.tsx                  → error boundary
+
+components/
+  Sidebar.tsx                → navigation principale
+  AgentCard.tsx              → carte agent cliquable (lien vers chat)
+  PageHeader.tsx             → header de page avec titre/actions
+  LogEntry.tsx               → entrée de log colorée par type
+
+lib/
+  supabase.ts                → clients Supabase (anon + service role) + types + helpers
+  claude.ts                  → wrapper Claude API complet
+
+supabase/
+  migrations/001_initial_schema.sql → schéma SQL + RLS
+  seed.ts                    → insertion des 13 agents
+
+
+SÉCURITÉ
+--------
+- Toutes les clés API dans les variables d'environnement
+- RLS (Row Level Security) activé sur toutes les tables Supabase
+- Aucune clé exposée côté client
+- Tous les appels Claude côté serveur (Next.js API routes)
+- Security headers HTTP (X-Frame-Options, nosniff, Referrer-Policy)
+
+
+VARIABLES D'ENVIRONNEMENT REQUISES
+-----------------------------------
+ANTHROPIC_API_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+
+DÉPLOIEMENT
+-----------
+1. Créer un projet sur supabase.com
+2. Exécuter supabase/migrations/001_initial_schema.sql dans le SQL Editor
+3. Remplir .env.local et lancer : npm run seed
+4. Importer le repo sur vercel.com, renseigner les 4 variables d'env
+5. Deploy automatique sur chaque push sur main
