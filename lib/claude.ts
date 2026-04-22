@@ -10,7 +10,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-3-5-sonnet-20241022';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ export async function callAgent(
   const agent = await getAgentById(agentId);
   if (!agent) throw new Error(`Agent ${agentId} introuvable`);
 
-  const memories = await getLastMemories(agentId, 20);
+  const memories = await getLastMemories(agentId, 10);
 
   const systemPrompt = buildSystemPrompt(agent, extraContext);
 
@@ -91,7 +91,7 @@ export async function callAgentWithImage(
   const agent = await getAgentById(agentId);
   if (!agent) throw new Error(`Agent ${agentId} introuvable`);
 
-  const memories   = await getLastMemories(agentId, 20);
+  const memories   = await getLastMemories(agentId, 10);
   const systemPrompt = buildSystemPrompt(agent, extraContext);
 
   const historyMessages = memories.map(m => ({

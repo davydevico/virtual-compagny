@@ -17,10 +17,12 @@ export async function POST(req: NextRequest) {
       : await callAgent(agentId, message.trim());
 
     return NextResponse.json(response);
-  } catch (err) {
-    console.error('[/api/chat]', err);
+  } catch (err: unknown) {
+    // Remonter le détail de l'erreur Anthropic pour le debug
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error('[/api/chat]', detail);
     return NextResponse.json(
-      { error: 'Erreur lors de l\'appel Claude' },
+      { error: detail },
       { status: 500 },
     );
   }

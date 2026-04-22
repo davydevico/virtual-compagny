@@ -171,14 +171,21 @@ export default function ChatPage() {
         body:    JSON.stringify(body),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         setMessages(prev => [...prev, {
           id:         `tmp-assistant-${Date.now()}`,
           role:       'assistant',
           content:    data.message,
           timestamp:  new Date().toISOString(),
           delegation: data.delegation ?? undefined,
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id:        `tmp-error-${Date.now()}`,
+          role:      'assistant',
+          content:   `⚠️ Erreur : ${data.error ?? 'Réponse invalide du serveur'}`,
+          timestamp: new Date().toISOString(),
         }]);
       }
     } finally {
