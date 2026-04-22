@@ -166,12 +166,19 @@ export default function ChatPage() {
 
     if (memRes.ok) {
       const memories: Memory[] = await memRes.json();
-      setMessages(memories.map(m => ({
-        id:        m.id,
-        role:      m.role,
-        content:   m.content,
-        timestamp: m.created_at,
-      })));
+      setMessages(
+        memories
+          // Filtrer les prompts internes de délégation qui auraient pollué la mémoire avant le fix
+          .filter(m => !(m.role === 'user' && m.content.startsWith('Mon équipe vient de terminer')))
+          .filter(m => !(m.role === 'user' && m.content.startsWith('me confie cette mission')))
+          .filter(m => !(m.role === 'user' && m.content.includes('me délègue cette mission')))
+          .map(m => ({
+            id:        m.id,
+            role:      m.role,
+            content:   m.content,
+            timestamp: m.created_at,
+          })),
+      );
     }
 
     setLoading(false);

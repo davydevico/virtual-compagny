@@ -39,16 +39,16 @@ export interface AgentResponse {
  * Charge la mémoire des 20 derniers échanges et sauvegarde la réponse.
  */
 export async function callAgent(
-  agentId:    string,
-  userMessage: string,
-  projectId?:  string,
+  agentId:      string,
+  userMessage:  string,
+  projectId?:   string,
   extraContext?: string,
+  options?: { saveUserMessage?: boolean },
 ): Promise<AgentResponse> {
   const agent = await getAgentById(agentId);
   if (!agent) throw new Error(`Agent ${agentId} introuvable`);
 
   const memories = await getLastMemories(agentId, 10);
-
   const systemPrompt = buildSystemPrompt(agent, extraContext);
 
   const messages: ChatMessage[] = [
@@ -70,7 +70,10 @@ export async function callAgent(
 
   const { message: assistantMessage, delegations } = parseDelegations(raw);
 
-  await saveMemory(agentId, 'user',      userMessage,      projectId);
+  // Sauvegarder le message utilisateur seulement si c'est un vrai message CEO (pas un prompt interne)
+  if (options?.saveUserMessage !== false) {
+    await saveMemory(agentId, 'user', userMessage, projectId);
+  }
   await saveMemory(agentId, 'assistant', assistantMessage, projectId);
 
   return { agentId, agentName: agent.name, message: assistantMessage, delegations };

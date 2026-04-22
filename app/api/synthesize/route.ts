@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
     const response = await callAgent(
       agentId,
       `Mon équipe vient de terminer. Voici leurs livrables complets :\n\n${reportsBlock}\n\nProduis maintenant le guide d'implémentation complet pour le CEO Davy, en suivant le format obligatoire avec toutes les étapes, le code exact et les commandes à exécuter.`,
+      undefined,
+      undefined,
+      { saveUserMessage: false }, // prompt interne, ne pas polluer la mémoire avec les rapports bruts
     );
 
     return NextResponse.json({ message: response.message });
