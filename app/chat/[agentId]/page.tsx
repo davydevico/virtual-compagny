@@ -306,21 +306,49 @@ export default function ChatPage() {
 
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-[#0a0d14] border border-[#1e2d4a] flex items-center justify-center text-xl">
+            {/* Anneau pulsant quand l'agent traite */}
+            {sending && (
+              <>
+                <span className="absolute inset-0 rounded-xl animate-ping bg-violet-500/40" />
+                <span className="absolute inset-0 rounded-xl animate-pulse bg-violet-500/15" />
+              </>
+            )}
+            <div className={`w-10 h-10 rounded-xl bg-[#0a0d14] flex items-center justify-center text-xl transition-all duration-300 ${
+              sending ? 'border-2 border-violet-500/60 shadow-lg shadow-violet-500/20' : 'border border-[#1e2d4a]'
+            }`}>
               {agent.avatar}
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111827]" />
+            {/* Indicateur de statut */}
+            {sending ? (
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-violet-500 border-2 border-[#111827] animate-pulse" />
+            ) : (
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111827]" />
+            )}
           </div>
           <div>
             <div className="font-semibold text-white text-sm">{agent.name}</div>
-            <div className={`text-xs ${deptColors[agent.department] ?? 'text-slate-400'}`}>
-              {agent.role} · {agent.department}
-            </div>
+            {sending ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-violet-400 font-medium animate-pulse">orchestre l'équipe</span>
+                <span className="flex gap-0.5">
+                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </div>
+            ) : (
+              <div className={`text-xs ${deptColors[agent.department] ?? 'text-slate-400'}`}>
+                {agent.role} · {agent.department}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="ml-auto text-xs text-slate-500">
-          {messages.length > 0 ? `${Math.ceil(messages.length / 2)} échanges` : 'Nouvelle conversation'}
+          {sending
+            ? <span className="text-violet-400/70 font-medium">En cours...</span>
+            : messages.length > 0 ? `${Math.ceil(messages.length / 2)} échanges` : 'Nouvelle conversation'
+          }
         </div>
       </div>
 
