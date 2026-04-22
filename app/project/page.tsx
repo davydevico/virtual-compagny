@@ -89,25 +89,49 @@ export default function ProjectPage() {
     setAttachedFile(null);
 
     try {
+      // 1. Créer le projet (rapide)
       const res  = await fetch('/api/project', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brief: fullBrief }),
       });
-      const data = await res.json();
 
-      if (res.ok) {
-        await fetchProjects();
-        const allRes      = await fetch('/api/project');
-        const allProjects: Project[] = await allRes.json();
-        const newProject  = allProjects.find(p => p.id === data.projectId) ?? allProjects[0];
-        if (newProject) {
-          setSelected(newProject);
-          await fetchLogs(newProject.id);
-          setMobileView('logs');
-        }
-        setBrief('');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }));
+        console.error('Erreur création projet:', err);
+        setRunning(false);
+        return;
       }
-    } finally {
+
+      const { projectId } = await res.json();
+
+      // 2. Récupérer et afficher le projet immédiatement
+      await fetchProjects();
+      const allRes      = await fetch('/api/project');
+      const allProjects: Project[] = await allRes.json();
+      const newProject  = allProjects.find(p => p.id === projectId) ?? allProjects[0];
+      if (newProject) {
+        setSelected(newProject);
+        await fetchLogs(newProject.id);
+        setMobileView('logs');
+        setPolling(true);
+      }
+      setBrief('');
+
+      // 3. Déclencher l'orchestration sans bloquer (fire & forget)
+      fetch(`/api/project/${projectId}/run`, { method: 'POST' })
+        .then(async (runRes) => {
+          if (!runRes.ok) console.error('Erreur run:', await runRes.text());
+        })
+        .catch(err => console.error('Erreur run:', err))
+        .finally(() => {
+          setRunning(false);
+          setPolling(false);
+          fetchProjects();
+          if (newProject) fetchLogs(newProject.id);
+        });
+
+    } catch (err) {
+      console.error('Erreur lancement:', err);
       setRunning(false);
       setPolling(false);
     }

@@ -9,6 +9,9 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+[functions]
+  timeout = 26
+
 # Variables d'env à définir dans Netlify UI → Site settings → Environment variables :
 #   ANTHROPIC_API_KEY
 #   NEXT_PUBLIC_SUPABASE_URL
