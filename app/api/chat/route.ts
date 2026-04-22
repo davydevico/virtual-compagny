@@ -20,39 +20,54 @@ export async function POST(req: NextRequest) {
       ? await callAgentWithImage(agentId, message.trim(), imageData, imageMimeType ?? 'image/jpeg')
       : await callAgent(agentId, message.trim());
 
-    // 2. Si délégation détectée → exécution automatique de la chaîne
-    if (response.delegation) {
-      const agents  = await getAllAgents();
-      const target  = agents.find(
-        a => a.name.toLowerCase() === response.delegation!.agentName.toLowerCase()
-          || a.role.toLowerCase().includes(response.delegation!.agentRole?.toLowerCase() ?? ''),
+    // 2. Si des délégations sont détectées → exécution automatique en parallèle
+    if (response.delegations.length > 0) {
+      const agents = await getAllAgents();
+
+      // Résoudre les agents cibles et les briefer tous en parallèle
+      const delegationResults = await Promise.all(
+        response.delegations.map(async (delegation) => {
+          const target = agents.find(
+            a => a.name.toLowerCase() === delegation.agentName.toLowerCase()
+              || a.role.toLowerCase().includes((delegation.agentRole ?? '').toLowerCase()),
+          );
+          if (!target) return null;
+
+          const delegateResponse = await callAgent(
+            target.id,
+            `${response.agentName} me délègue cette mission :\n\n"${delegation.task}"\n\nJe livre un rapport concret et actionnable.`,
+          );
+
+          return {
+            agentId:         target.id,
+            agentName:       target.name,
+            agentRole:       target.role,
+            agentAvatar:     target.avatar,
+            task:            delegation.task,
+            delegateMessage: delegateResponse.message,
+            autoExecuted:    true as const,
+          };
+        }),
       );
 
-      if (target) {
-        // Brief automatique de l'agent délégué
-        const delegateResponse = await callAgent(
-          target.id,
-          `${response.agentName} (${response.agentName === 'Marcus' ? 'CTO' : 'manager'}) me délègue cette tâche :\n\n"${response.delegation!.task}"\n\nJe prends en charge et fournis un livrable concret.`,
-        );
+      const validResults = delegationResults.filter(Boolean) as NonNullable<typeof delegationResults[0]>[];
 
-        // L'agent principal synthétise le résultat pour le CEO
-        const synthesis = await callAgent(
-          agentId,
-          `${target.name} vient de terminer la tâche que je lui avais confiée. Voici son rapport complet :\n\n${delegateResponse.message}\n\nFais une synthèse courte (max 5 lignes) pour le CEO Davy : ce qui a été fait, par qui, et quel est le résultat / prochaine étape.`,
-        );
+      // 3. Le manager synthétise tous les rapports pour le CEO
+      const reportsBlock = validResults
+        .map(r => `### ${r.agentName} — ${r.agentRole}\n${r.delegateMessage}`)
+        .join('\n\n---\n\n');
 
-        return NextResponse.json({
-          ...synthesis,
-          delegation: {
-            ...response.delegation,
-            agentId:          target.id,
-            agentAvatar:      target.avatar,
-            delegateMessage:  delegateResponse.message,
-            initialMessage:   response.message,
-            autoExecuted:     true,
-          },
-        });
-      }
+      const synthesis = await callAgent(
+        agentId,
+        `Voici les rapports de toute l'équipe que j'ai briefée :\n\n${reportsBlock}\n\nFais une synthèse courte (5 lignes max) pour le CEO Davy : ce qui a été fait, par qui, résultat et prochaine étape éventuelle.`,
+      );
+
+      return NextResponse.json({
+        agentId:     synthesis.agentId,
+        agentName:   synthesis.agentName,
+        message:     synthesis.message,
+        delegations: validResults,
+      });
     }
 
     return NextResponse.json(response);

@@ -26,10 +26,10 @@ export interface Delegation {
 }
 
 export interface AgentResponse {
-  agentId:    string;
-  agentName:  string;
-  message:    string;
-  delegation?: Delegation;
+  agentId:     string;
+  agentName:   string;
+  message:     string;
+  delegations: Delegation[];
 }
 
 // ─── Wrapper principal ────────────────────────────────────────────────────────
@@ -68,12 +68,12 @@ export async function callAgent(
     .map(b => (b as Anthropic.TextBlock).text)
     .join('');
 
-  const { message: assistantMessage, delegation } = parseDelegation(raw);
+  const { message: assistantMessage, delegations } = parseDelegations(raw);
 
   await saveMemory(agentId, 'user',      userMessage,      projectId);
   await saveMemory(agentId, 'assistant', assistantMessage, projectId);
 
-  return { agentId, agentName: agent.name, message: assistantMessage, delegation };
+  return { agentId, agentName: agent.name, message: assistantMessage, delegations };
 }
 
 /**
@@ -129,12 +129,12 @@ export async function callAgentWithImage(
     .map(b => (b as Anthropic.TextBlock).text)
     .join('');
 
-  const { message: assistantMessage, delegation } = parseDelegation(raw);
+  const { message: assistantMessage, delegations } = parseDelegations(raw);
 
   await saveMemory(agentId, 'user',      userMessage,      projectId);
   await saveMemory(agentId, 'assistant', assistantMessage, projectId);
 
-  return { agentId, agentName: agent.name, message: assistantMessage, delegation };
+  return { agentId, agentName: agent.name, message: assistantMessage, delegations };
 }
 
 /**
@@ -182,32 +182,42 @@ ${extraContext ? `\n## Contexte supplémentaire\n${extraContext}` : ''}
 ## Délégation d'équipe — RÈGLE ABSOLUE
 Tu es un manager, PAS un exécutant. Tu ne fais JAMAIS le travail technique à la place de ton équipe.
 Dès que le CEO valide une action concrète ("ok", "vas-y", "on attaque", "fais-le", "on fait ça", "go", etc.) :
-1. Tu réponds BRIÈVEMENT en confirmant qui prend en charge et pourquoi
-2. Tu DÉLÈGUES OBLIGATOIREMENT à la bonne personne via ce bloc en fin de réponse :
-<DELEGATE>{"agentName": "Prénom", "agentRole": "Rôle exact", "task": "Brief précis et complet de ce que tu lui demandes de faire"}</DELEGATE>
+1. Tu réponds BRIÈVEMENT (2-4 lignes max) en annonçant qui fait quoi
+2. Tu DÉLÈGUES à CHAQUE personne concernée avec un bloc <DELEGATE> par agent :
+
+<DELEGATE>{"agentName": "Prénom", "agentRole": "Rôle exact", "task": "Brief précis et complet pour cet agent"}</DELEGATE>
+<DELEGATE>{"agentName": "Autre Prénom", "agentRole": "Rôle exact", "task": "Brief précis et complet pour cet agent"}</DELEGATE>
+
+Tu peux et DOIS utiliser autant de blocs <DELEGATE> que nécessaire selon la complexité.
+Pour un sprint complet : tu délègues à tous les membres de l'équipe concernés EN PARALLÈLE.
 
 Exemples de délégation :
-- Tests → Nina (QA Médical) ou Léa/Omar selon le contexte
+- Tests → Nina (QA Médical)
 - Infrastructure / CI-CD → Samy (DevOps)
 - Frontend → Léa (Développeuse Frontend)
-- Backend / Firebase → Omar (Développeur Backend)
+- Backend → Omar (Développeur Backend)
 - Design → Inès (Designer UI/UX Médical)
 
 NE JAMAIS demander au CEO de copier-coller du code, faire du travail technique, ou exécuter des commandes.
-Le CEO valide et décide. L'équipe exécute.
+Le CEO valide et décide. L'équipe exécute. Le manager coordonne et rapporte.
 `;
 }
 
-function parseDelegation(raw: string): { message: string; delegation?: Delegation } {
-  const match = raw.match(/<DELEGATE>([\s\S]*?)<\/DELEGATE>/);
-  if (!match) return { message: raw };
-  try {
-    const delegation: Delegation = JSON.parse(match[1].trim());
-    const message = raw.replace(/<DELEGATE>[\s\S]*?<\/DELEGATE>/, '').trim();
-    return { message, delegation };
-  } catch {
-    return { message: raw };
+function parseDelegations(raw: string): { message: string; delegations: Delegation[] } {
+  const regex = /<DELEGATE>([\s\S]*?)<\/DELEGATE>/g;
+  const delegations: Delegation[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(raw)) !== null) {
+    try {
+      delegations.push(JSON.parse(match[1].trim()) as Delegation);
+    } catch {
+      // skip malformed block
+    }
   }
+
+  const message = raw.replace(/<DELEGATE>[\s\S]*?<\/DELEGATE>/g, '').trim();
+  return { message, delegations };
 }
 
 // ─── Orchestration projet ─────────────────────────────────────────────────────

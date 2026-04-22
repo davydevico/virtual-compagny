@@ -8,21 +8,21 @@ import remarkGfm from 'remark-gfm';
 import type { Agent, Memory } from '@/lib/supabase';
 
 interface Delegation {
+  agentId?:         string;
   agentName:        string;
   agentRole:        string;
   agentAvatar?:     string;
   task:             string;
   delegateMessage?: string;
-  initialMessage?:  string;
   autoExecuted?:    boolean;
 }
 
 interface Message {
-  id:          string;
-  role:        'user' | 'assistant';
-  content:     string;
-  timestamp:   string;
-  delegation?: Delegation;
+  id:           string;
+  role:         'user' | 'assistant';
+  content:      string;
+  timestamp:    string;
+  delegations?: Delegation[];
 }
 
 interface AttachedFile {
@@ -35,10 +35,12 @@ interface AttachedFile {
 
 const TEXT_EXTENSIONS = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|sql|html|css|xml|yaml|yml|sh|env)$/i;
 
-function DelegationThread({ delegation, fromAgent, targetAgent }: {
-  delegation: Delegation;
-  fromAgent:  Agent;
+function DelegationThread({ delegation, fromAgent, targetAgent, index, total }: {
+  delegation:  Delegation;
+  fromAgent:   Agent;
   targetAgent: Agent | null;
+  index?:      number;
+  total?:      number;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -47,11 +49,16 @@ function DelegationThread({ delegation, fromAgent, targetAgent }: {
       {/* Header */}
       <div className="flex items-center gap-2 px-3.5 py-2.5 bg-violet-500/8 border-b border-violet-500/15">
         <span className="text-violet-400 text-sm">⚡</span>
-        <span className="text-xs font-bold text-violet-300">Délégation automatique</span>
+        <span className="text-xs font-bold text-violet-300">
+          {total && total > 1 ? `Mission ${(index ?? 0) + 1}/${total}` : 'Délégation automatique'}
+        </span>
         <div className="flex items-center gap-1.5 ml-1 text-[11px] text-slate-400">
           <span>{fromAgent.avatar} {fromAgent.name}</span>
           <span className="text-slate-600">→</span>
           <span>{targetAgent?.avatar ?? '🤖'} {delegation.agentName}</span>
+          {delegation.agentRole && (
+            <span className="text-slate-600">· {delegation.agentRole}</span>
+          )}
         </div>
       </div>
 
@@ -243,11 +250,11 @@ export default function ChatPage() {
       const data = await res.json();
       if (res.ok) {
         setMessages(prev => [...prev, {
-          id:         `tmp-assistant-${Date.now()}`,
-          role:       'assistant',
-          content:    data.message,
-          timestamp:  new Date().toISOString(),
-          delegation: data.delegation ?? undefined,
+          id:          `tmp-assistant-${Date.now()}`,
+          role:        'assistant',
+          content:     data.message,
+          timestamp:   new Date().toISOString(),
+          delegations: data.delegations?.length ? data.delegations : undefined,
         }]);
       } else {
         setMessages(prev => [...prev, {
@@ -376,14 +383,17 @@ export default function ChatPage() {
                 </p>
               </div>
 
-              {/* Thread de délégation auto-exécuté */}
-              {msg.delegation?.autoExecuted && (
+              {/* Threads de délégation auto-exécutés */}
+              {msg.delegations?.filter(d => d.autoExecuted).map((d, i) => (
                 <DelegationThread
-                  delegation={msg.delegation}
+                  key={i}
+                  delegation={d}
                   fromAgent={agent!}
-                  targetAgent={agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase()) ?? null}
+                  targetAgent={agents.find(a => a.name.toLowerCase() === d.agentName.toLowerCase()) ?? null}
+                  index={i}
+                  total={msg.delegations!.filter(x => x.autoExecuted).length}
                 />
-              )}
+              ))}
             </div>
           </div>
         ))}
