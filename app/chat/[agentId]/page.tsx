@@ -450,80 +450,79 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1e2d4a] flex items-center gap-4">
-        <Link href="/dashboard" className="text-slate-400 hover:text-white transition-colors text-sm">
-          ← Retour
+    /* h-full + flex-col : remplit exactement l'espace dispo dans <main> sans déborder */
+    <div className="h-full flex flex-col">
+
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      <div className="shrink-0 px-3 md:px-5 py-3 border-b border-[#1e2d4a] flex items-center gap-3 bg-[#080b12]/80 backdrop-blur-sm">
+        <Link
+          href="/dashboard"
+          className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
         </Link>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            {/* Anneau pulsant quand l'agent traite */}
-            {sending && (
-              <>
-                <span className="absolute inset-0 rounded-xl animate-ping bg-violet-500/40" />
-                <span className="absolute inset-0 rounded-xl animate-pulse bg-violet-500/15" />
-              </>
-            )}
-            <div className={`w-10 h-10 rounded-xl bg-[#0a0d14] flex items-center justify-center text-xl transition-all duration-300 ${
-              sending ? 'border-2 border-violet-500/60 shadow-lg shadow-violet-500/20' : 'border border-[#1e2d4a]'
-            }`}>
-              {agent.avatar}
-            </div>
-            {/* Indicateur de statut */}
-            {sending ? (
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-violet-500 border-2 border-[#111827] animate-pulse" />
-            ) : (
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#111827]" />
-            )}
+        {/* Avatar agent */}
+        <div className="relative shrink-0">
+          {sending && (
+            <>
+              <span className="absolute inset-0 rounded-xl animate-ping bg-violet-500/40" />
+              <span className="absolute inset-0 rounded-xl animate-pulse bg-violet-500/15" />
+            </>
+          )}
+          <div className={`w-10 h-10 rounded-xl bg-[#0a0d14] flex items-center justify-center text-xl transition-all duration-300 ${
+            sending ? 'border-2 border-violet-500/60 shadow-lg shadow-violet-500/20' : 'border border-[#1e2d4a]'
+          }`}>
+            {agent.avatar}
           </div>
-          <div>
-            <div className="font-semibold text-white text-sm">{agent.name}</div>
-            {sending ? (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-violet-400 font-medium animate-pulse">orchestre l'équipe</span>
-                <span className="flex gap-0.5">
-                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-              </div>
-            ) : (
-              <div className={`text-xs ${deptColors[agent.department] ?? 'text-slate-400'}`}>
-                {agent.role} · {agent.department}
-              </div>
-            )}
-          </div>
+          {sending ? (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-violet-500 border-2 border-[#0d1117] animate-pulse" />
+          ) : (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#0d1117]" />
+          )}
         </div>
 
-        <div className="ml-auto text-xs text-slate-500">
+        {/* Nom + statut */}
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-white text-sm truncate">{agent.name}</div>
+          {sending ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-violet-400 font-medium animate-pulse">orchestre l'équipe</span>
+              <span className="flex gap-0.5">
+                {[0,150,300].map(d => (
+                  <span key={d} className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                ))}
+              </span>
+            </div>
+          ) : (
+            <div className={`text-xs truncate ${deptColors[agent.department] ?? 'text-slate-400'}`}>
+              {agent.role}
+            </div>
+          )}
+        </div>
+
+        <div className="text-xs text-slate-600 shrink-0">
           {sending
             ? <span className="text-violet-400/70 font-medium">En cours...</span>
-            : messages.length > 0 ? `${Math.ceil(messages.length / 2)} échanges` : 'Nouvelle conversation'
+            : messages.length > 0 ? `${Math.ceil(messages.filter(m => m.role === 'user').length)} msg` : ''
           }
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+      {/* ── MESSAGES — min-h-0 crucial pour que flex-1 puisse scroller ──────── */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 md:px-5 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-5xl mb-4">{agent.avatar}</div>
-            <h3 className="text-lg font-medium text-white mb-2">
-              Bonjour, je suis {agent.name}
-            </h3>
-            <p className="text-sm text-slate-400 max-w-md mx-auto">
-              {agent.role} chez SURGIFLOW. Comment puis-je vous aider ?
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Vous pouvez joindre des fichiers ou images via 📎
-            </p>
+          <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+            <div className="text-5xl mb-3">{agent.avatar}</div>
+            <h3 className="text-base font-semibold text-white mb-1">Bonjour, je suis {agent.name}</h3>
+            <p className="text-sm text-slate-400 max-w-xs">{agent.role} chez SURGIFLOW.</p>
+            <p className="text-xs text-slate-600 mt-1">Joindre fichier ou image via 📎</p>
           </div>
         )}
 
         {messages.map(msg => {
-          // ── Message de délégation (carte agent en cours) ──────────────
           if (msg.role === 'delegation' && msg.delegation) {
             return (
               <DelegationRow
@@ -535,14 +534,10 @@ export default function ChatPage() {
             );
           }
 
-          // ── Message normal (user / assistant) ─────────────────────────
           return (
-            <div
-              key={msg.id}
-              className={`flex gap-2.5 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
+            <div key={msg.id} className={`flex gap-2 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 mt-5 ${
+              <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm shrink-0 mt-5 ${
                 msg.role === 'user'
                   ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
                   : 'bg-[#1a2235] border border-[#1e2d4a]'
@@ -550,44 +545,44 @@ export default function ChatPage() {
                 {msg.role === 'user' ? 'D' : agent.avatar}
               </div>
 
-              <div className={`max-w-[72%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                <p className={`text-[11px] font-semibold px-1 ${
-                  msg.role === 'user' ? 'text-slate-400 text-right' : `${deptColors[agent.department] ?? 'text-slate-400'}`
+              <div className={`max-w-[82%] md:max-w-[72%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <p className={`text-[10px] md:text-[11px] font-semibold px-1 ${
+                  msg.role === 'user' ? 'text-slate-500 text-right' : `${deptColors[agent.department] ?? 'text-slate-400'}`
                 }`}>
                   {msg.role === 'user' ? 'Davy — CEO' : `${agent.name} — ${agent.role}`}
                 </p>
 
-                <div className={`rounded-2xl px-4 py-3 ${
+                <div className={`rounded-2xl px-3 md:px-4 py-2.5 md:py-3 overflow-hidden ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-tr-sm'
                     : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
                 }`}>
                   {msg.role === 'assistant' ? (
-                    <div className="prose-dark text-sm">
+                    /* overflow-x-auto sur le wrapper pour que les blocs code scrollent horizontalement */
+                    <div className="prose-dark text-sm overflow-x-auto">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                   )}
-                  <div className="flex items-center justify-between mt-2 gap-3">
-                    <p className={`text-xs ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
+                  <div className="flex items-center justify-between mt-1.5 gap-2">
+                    <p className={`text-[10px] ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-600'}`}>
                       {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     {msg.role === 'assistant' && msg.content.includes('```') && (
                       <button
                         onClick={() => {
                           const filename = `${agent.name.toLowerCase()}-livrable-${new Date(msg.timestamp).toISOString().slice(0,10)}.md`;
-                          const header = `# Livrable — ${agent.name} (${agent.role})\n_${new Date(msg.timestamp).toLocaleString('fr-FR')}_\n\n---\n\n`;
-                          const blob = new Blob([header + msg.content], { type: 'text/markdown' });
-                          const url  = URL.createObjectURL(blob);
-                          const a    = document.createElement('a');
+                          const blob = new Blob([`# Livrable — ${agent.name} (${agent.role})\n_${new Date(msg.timestamp).toLocaleString('fr-FR')}_\n\n---\n\n` + msg.content], { type: 'text/markdown' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
                           a.href = url; a.download = filename; a.click();
                           URL.revokeObjectURL(url);
                         }}
-                        className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                        className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-300 transition-colors shrink-0"
                         title="Télécharger en .md"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
                         .md
@@ -600,23 +595,24 @@ export default function ChatPage() {
           );
         })}
 
+        {/* Indicateur de frappe */}
         {sending && (
-          <div className="flex gap-2.5 animate-fade-in">
-            <div className="w-8 h-8 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-sm shrink-0 mt-5">
+          <div className="flex gap-2 animate-fade-in">
+            <div className="w-7 h-7 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-xs shrink-0 mt-5">
               {agent.avatar}
             </div>
             <div className="flex flex-col gap-1">
-              <p className={`text-[11px] font-semibold px-1 ${deptColors[agent.department] ?? 'text-slate-400'}`}>
-                {agent.name} — {agent.role}
+              <p className={`text-[10px] font-semibold px-1 ${deptColors[agent.department] ?? 'text-slate-400'}`}>
+                {agent.name}
               </p>
-              <div className="bg-[#1a2235] border border-[#1e2d4a] rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="bg-[#1a2235] border border-[#1e2d4a] rounded-2xl rounded-tl-sm px-3 py-2.5">
                 <div className="flex gap-2 items-center">
-                  <div className="flex gap-1 items-center">
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex gap-1">
+                    {[0,150,300].map(d => (
+                      <span key={d} className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                    ))}
                   </div>
-                  <span className="text-xs text-slate-500 italic">orchestre son équipe...</span>
+                  <span className="text-xs text-slate-600 italic">orchestre son équipe...</span>
                 </div>
               </div>
             </div>
@@ -626,28 +622,20 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-6 py-4 border-t border-[#1e2d4a]">
-        {/* Aperçu fichier joint */}
+      {/* ── INPUT — shrink-0 : ne bouge jamais, reste toujours en bas ──────── */}
+      <div className="shrink-0 border-t border-[#1e2d4a] bg-[#080b12] px-3 md:px-5 pt-2 pb-3 md:py-4">
         {attachedFile && (
-          <div className="mb-2 flex items-center gap-2 bg-[#1a2235] border border-[#1e2d4a] rounded-lg px-3 py-2">
-            {attachedFile.type === 'image' && attachedFile.preview ? (
-              <img src={attachedFile.preview} alt={attachedFile.name} className="w-8 h-8 rounded object-cover" />
-            ) : (
-              <span className="text-lg">📄</span>
-            )}
+          <div className="mb-2 flex items-center gap-2 bg-[#1a2235] border border-[#1e2d4a] rounded-lg px-3 py-1.5">
+            {attachedFile.type === 'image' && attachedFile.preview
+              ? <img src={attachedFile.preview} alt={attachedFile.name} className="w-7 h-7 rounded object-cover" />
+              : <span className="text-base">📄</span>
+            }
             <span className="text-xs text-slate-300 flex-1 truncate">{attachedFile.name}</span>
-            <button
-              onClick={() => setAttachedFile(null)}
-              className="text-slate-500 hover:text-red-400 transition-colors text-sm ml-1"
-            >
-              ✕
-            </button>
+            <button onClick={() => setAttachedFile(null)} className="text-slate-500 hover:text-red-400 transition-colors text-xs ml-1">✕</button>
           </div>
         )}
 
         <div className="flex gap-2 items-end">
-          {/* Bouton fichier */}
           <input
             ref={fileRef}
             type="file"
@@ -659,9 +647,9 @@ export default function ChatPage() {
             onClick={() => fileRef.current?.click()}
             disabled={sending}
             title="Joindre un fichier ou une image"
-            className="w-11 h-11 rounded-xl bg-[#1a2235] border border-[#1e2d4a] text-slate-400 flex items-center justify-center hover:border-blue-500/40 hover:text-blue-400 transition-colors disabled:opacity-50 shrink-0"
+            className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-[#1a2235] border border-[#1e2d4a] text-slate-400 flex items-center justify-center hover:border-blue-500/40 hover:text-blue-400 transition-colors disabled:opacity-50 shrink-0"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
@@ -672,25 +660,22 @@ export default function ChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Écrire à ${agent.name}... (Entrée pour envoyer, Shift+Entrée pour la ligne)`}
-            className="flex-1 bg-[#1a2235] border border-[#1e2d4a] rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-blue-500/50 transition-colors max-h-32"
+            placeholder={`Écrire à ${agent.name}...`}
+            className="flex-1 bg-[#1a2235] border border-[#1e2d4a] rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-blue-500/50 transition-colors"
             rows={1}
-            style={{ minHeight: '46px' }}
+            style={{ minHeight: '42px', maxHeight: '120px' }}
             disabled={sending}
           />
 
           <button
             onClick={send}
             disabled={(!input.trim() && !attachedFile) || sending}
-            className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
-            {sending ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <svg className="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            )}
+            {sending
+              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <svg className="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            }
           </button>
         </div>
       </div>

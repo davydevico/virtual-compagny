@@ -57,10 +57,17 @@ html, body {
 .prose-dark pre {
   background: #0d1117;
   border: 1px solid #1e2d4a;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 10px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 0.75rem;
+  max-width: 100%;
+}
+/* Force le wrap des mots longs hors blocs code */
+.prose-dark p, .prose-dark li {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .prose-dark pre code {
   background: transparent;
