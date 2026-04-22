@@ -8,9 +8,13 @@ import remarkGfm from 'remark-gfm';
 import type { Agent, Memory } from '@/lib/supabase';
 
 interface Delegation {
-  agentName: string;
-  agentRole: string;
-  task:      string;
+  agentName:        string;
+  agentRole:        string;
+  agentAvatar?:     string;
+  task:             string;
+  delegateMessage?: string;
+  initialMessage?:  string;
+  autoExecuted?:    boolean;
 }
 
 interface Message {
@@ -31,6 +35,72 @@ interface AttachedFile {
 
 const TEXT_EXTENSIONS = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|sql|html|css|xml|yaml|yml|sh|env)$/i;
 
+function DelegationThread({ delegation, fromAgent, targetAgent }: {
+  delegation: Delegation;
+  fromAgent:  Agent;
+  targetAgent: Agent | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-2 rounded-xl border border-violet-500/20 bg-[#130d1f] overflow-hidden animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3.5 py-2.5 bg-violet-500/8 border-b border-violet-500/15">
+        <span className="text-violet-400 text-sm">⚡</span>
+        <span className="text-xs font-bold text-violet-300">Délégation automatique</span>
+        <div className="flex items-center gap-1.5 ml-1 text-[11px] text-slate-400">
+          <span>{fromAgent.avatar} {fromAgent.name}</span>
+          <span className="text-slate-600">→</span>
+          <span>{targetAgent?.avatar ?? '🤖'} {delegation.agentName}</span>
+        </div>
+      </div>
+
+      {/* Tâche briefée */}
+      <div className="px-3.5 py-2.5 border-b border-white/5">
+        <p className="text-[11px] text-slate-500 mb-1 uppercase tracking-wider font-semibold">Brief envoyé</p>
+        <p className="text-xs text-slate-300 leading-relaxed italic">"{delegation.task}"</p>
+      </div>
+
+      {/* Réponse de l'agent délégué */}
+      {delegation.delegateMessage && (
+        <div className="px-3.5 py-2.5 border-b border-white/5">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
+              {targetAgent?.avatar ?? '🤖'} {delegation.agentName} a répondu
+            </p>
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              {expanded ? 'Réduire ↑' : 'Voir le détail ↓'}
+            </button>
+          </div>
+          {expanded && (
+            <div className="prose-dark text-xs text-slate-400 leading-relaxed max-h-60 overflow-y-auto">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{delegation.delegateMessage}</ReactMarkdown>
+            </div>
+          )}
+          {!expanded && (
+            <p className="text-xs text-slate-500 line-clamp-2">{delegation.delegateMessage.slice(0, 120)}…</p>
+          )}
+        </div>
+      )}
+
+      {/* Lien vers le chat de l'agent */}
+      {targetAgent && (
+        <div className="px-3.5 py-2 flex justify-end">
+          <Link
+            href={`/chat/${targetAgent.id}`}
+            className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+          >
+            Voir le chat avec {targetAgent.name} →
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const router = useRouter();
@@ -42,7 +112,6 @@ export default function ChatPage() {
   const [sending, setSending]         = useState(false);
   const [loading, setLoading]         = useState(true);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
-  const [delegating, setDelegating]   = useState<string | null>(null); // agentName en cours de délégation
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
@@ -201,31 +270,6 @@ export default function ChatPage() {
     }
   };
 
-  const handleDelegate = async (delegation: Delegation) => {
-    if (!agent) return;
-    setDelegating(delegation.agentName);
-
-    try {
-      const res = await fetch('/api/delegate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromAgentName: agent.name,
-          toAgentName:   delegation.agentName,
-          toAgentRole:   delegation.agentRole,
-          task:          delegation.task,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Naviguer vers le chat de l'agent délégué
-        router.push(`/chat/${data.agentId}`);
-      }
-    } finally {
-      setDelegating(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -332,45 +376,13 @@ export default function ChatPage() {
                 </p>
               </div>
 
-              {/* Carte de délégation */}
-              {msg.delegation && (
-                <div className="mt-2 rounded-xl border border-violet-500/25 bg-violet-500/8 p-3.5 animate-fade-in">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center text-sm shrink-0">
-                      {agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase())?.avatar ?? '🤖'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-violet-300 mb-0.5">
-                        {agent?.name} délègue à {msg.delegation.agentName} — {msg.delegation.agentRole}
-                      </p>
-                      <p className="text-xs text-slate-400 leading-relaxed">"{msg.delegation.task}"</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => handleDelegate(msg.delegation!)}
-                      disabled={delegating === msg.delegation.agentName}
-                      className="flex-1 py-2 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-                    >
-                      {delegating === msg.delegation.agentName ? (
-                        <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />Briefing en cours...</>
-                      ) : (
-                        <>⚡ Briefer {msg.delegation.agentName} maintenant</>
-                      )}
-                    </button>
-                    {(() => {
-                      const target = agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase());
-                      return target ? (
-                        <Link
-                          href={`/chat/${target.id}`}
-                          className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
-                        >
-                          Ouvrir →
-                        </Link>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
+              {/* Thread de délégation auto-exécuté */}
+              {msg.delegation?.autoExecuted && (
+                <DelegationThread
+                  delegation={msg.delegation}
+                  fromAgent={agent!}
+                  targetAgent={agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase()) ?? null}
+                />
               )}
             </div>
           </div>
@@ -386,10 +398,13 @@ export default function ChatPage() {
                 {agent.name} — {agent.role}
               </p>
               <div className="bg-[#1a2235] border border-[#1e2d4a] rounded-2xl rounded-tl-sm px-4 py-3">
-                <div className="flex gap-1 items-center h-5">
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex gap-2 items-center">
+                  <div className="flex gap-1 items-center">
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-xs text-slate-500 italic">orchestre son équipe...</span>
                 </div>
               </div>
             </div>
