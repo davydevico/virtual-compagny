@@ -7,11 +7,18 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Agent, Memory } from '@/lib/supabase';
 
+interface Delegation {
+  agentName: string;
+  agentRole: string;
+  task:      string;
+}
+
 interface Message {
-  id:        string;
-  role:      'user' | 'assistant';
-  content:   string;
-  timestamp: string;
+  id:          string;
+  role:        'user' | 'assistant';
+  content:     string;
+  timestamp:   string;
+  delegation?: Delegation;
 }
 
 interface AttachedFile {
@@ -29,11 +36,13 @@ export default function ChatPage() {
   const router = useRouter();
 
   const [agent, setAgent]             = useState<Agent | null>(null);
+  const [agents, setAgents]           = useState<Agent[]>([]);
   const [messages, setMessages]       = useState<Message[]>([]);
   const [input, setInput]             = useState('');
   const [sending, setSending]         = useState(false);
   const [loading, setLoading]         = useState(true);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+  const [delegating, setDelegating]   = useState<string | null>(null); // agentName en cours de délégation
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
@@ -53,8 +62,9 @@ export default function ChatPage() {
     ]);
 
     if (agentRes.ok) {
-      const agents: Agent[] = await agentRes.json();
-      const found = agents.find(a => a.id === agentId);
+      const allAgents: Agent[] = await agentRes.json();
+      setAgents(allAgents);
+      const found = allAgents.find(a => a.id === agentId);
       if (!found) { router.push('/dashboard'); return; }
       setAgent(found);
     }
@@ -164,10 +174,11 @@ export default function ChatPage() {
       if (res.ok) {
         const data = await res.json();
         setMessages(prev => [...prev, {
-          id:        `tmp-assistant-${Date.now()}`,
-          role:      'assistant',
-          content:   data.message,
-          timestamp: new Date().toISOString(),
+          id:         `tmp-assistant-${Date.now()}`,
+          role:       'assistant',
+          content:    data.message,
+          timestamp:  new Date().toISOString(),
+          delegation: data.delegation ?? undefined,
         }]);
       }
     } finally {
@@ -180,6 +191,32 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
+    }
+  };
+
+  const handleDelegate = async (delegation: Delegation) => {
+    if (!agent) return;
+    setDelegating(delegation.agentName);
+
+    try {
+      const res = await fetch('/api/delegate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAgentName: agent.name,
+          toAgentName:   delegation.agentName,
+          toAgentRole:   delegation.agentRole,
+          task:          delegation.task,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Naviguer vers le chat de l'agent délégué
+        router.push(`/chat/${data.agentId}`);
+      }
+    } finally {
+      setDelegating(null);
     }
   };
 
@@ -287,6 +324,47 @@ export default function ChatPage() {
                   {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
+
+              {/* Carte de délégation */}
+              {msg.delegation && (
+                <div className="mt-2 rounded-xl border border-violet-500/25 bg-violet-500/8 p-3.5 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center text-sm shrink-0">
+                      {agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase())?.avatar ?? '🤖'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-violet-300 mb-0.5">
+                        {agent?.name} délègue à {msg.delegation.agentName} — {msg.delegation.agentRole}
+                      </p>
+                      <p className="text-xs text-slate-400 leading-relaxed">"{msg.delegation.task}"</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => handleDelegate(msg.delegation!)}
+                      disabled={delegating === msg.delegation.agentName}
+                      className="flex-1 py-2 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {delegating === msg.delegation.agentName ? (
+                        <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />Briefing en cours...</>
+                      ) : (
+                        <>⚡ Briefer {msg.delegation.agentName} maintenant</>
+                      )}
+                    </button>
+                    {(() => {
+                      const target = agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase());
+                      return target ? (
+                        <Link
+                          href={`/chat/${target.id}`}
+                          className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+                        >
+                          Ouvrir →
+                        </Link>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}

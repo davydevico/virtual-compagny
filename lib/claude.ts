@@ -19,10 +19,17 @@ export interface ChatMessage {
   content: string;
 }
 
-export interface AgentResponse {
-  agentId:   string;
+export interface Delegation {
   agentName: string;
-  message:   string;
+  agentRole: string;
+  task:      string;
+}
+
+export interface AgentResponse {
+  agentId:    string;
+  agentName:  string;
+  message:    string;
+  delegation?: Delegation;
 }
 
 // ─── Wrapper principal ────────────────────────────────────────────────────────
@@ -56,19 +63,17 @@ export async function callAgent(
     messages,
   });
 
-  const assistantMessage = response.content
+  const raw = response.content
     .filter(b => b.type === 'text')
     .map(b => (b as Anthropic.TextBlock).text)
     .join('');
 
+  const { message: assistantMessage, delegation } = parseDelegation(raw);
+
   await saveMemory(agentId, 'user',      userMessage,      projectId);
   await saveMemory(agentId, 'assistant', assistantMessage, projectId);
 
-  return {
-    agentId,
-    agentName: agent.name,
-    message:   assistantMessage,
-  };
+  return { agentId, agentName: agent.name, message: assistantMessage, delegation };
 }
 
 /**
@@ -119,15 +124,17 @@ export async function callAgentWithImage(
     ],
   });
 
-  const assistantMessage = response.content
+  const raw = response.content
     .filter(b => b.type === 'text')
     .map(b => (b as Anthropic.TextBlock).text)
     .join('');
 
+  const { message: assistantMessage, delegation } = parseDelegation(raw);
+
   await saveMemory(agentId, 'user',      userMessage,      projectId);
   await saveMemory(agentId, 'assistant', assistantMessage, projectId);
 
-  return { agentId, agentName: agent.name, message: assistantMessage };
+  return { agentId, agentName: agent.name, message: assistantMessage, delegation };
 }
 
 /**
@@ -171,7 +178,25 @@ ${extraContext ? `\n## Contexte supplémentaire\n${extraContext}` : ''}
 - Sois concret et actionnable dans tes réponses
 - Si tu as besoin d'informations supplémentaires, pose des questions précises
 - Utilise le contexte SURGIFLOW dans tes réponses
+
+## Délégation d'équipe
+Quand le CEO valide une action qui relève clairement d'un autre membre de ton équipe directe, tu peux déléguer.
+Ajoute alors à la toute fin de ta réponse ce bloc (et uniquement si tu délègues vraiment) :
+<DELEGATE>{"agentName": "Prénom", "agentRole": "Rôle exact", "task": "Brief précis de ce que tu lui demandes de faire"}</DELEGATE>
+N'utilise ce mécanisme que lorsque le CEO a validé l'action ("ok", "vas-y", "fais-le", "on fait ça", etc.).
 `;
+}
+
+function parseDelegation(raw: string): { message: string; delegation?: Delegation } {
+  const match = raw.match(/<DELEGATE>([\s\S]*?)<\/DELEGATE>/);
+  if (!match) return { message: raw };
+  try {
+    const delegation: Delegation = JSON.parse(match[1].trim());
+    const message = raw.replace(/<DELEGATE>[\s\S]*?<\/DELEGATE>/, '').trim();
+    return { message, delegation };
+  } catch {
+    return { message: raw };
+  }
 }
 
 // ─── Orchestration projet ─────────────────────────────────────────────────────
