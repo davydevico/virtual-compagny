@@ -115,7 +115,7 @@ export async function POST(
       .from('projects')
       .update({ status: 'paused' })
       .eq('id', projectId)
-      .catch(() => {});
+      .then(() => {}, () => {});
 
     return NextResponse.json({ error: 'Erreur orchestration' }, { status: 500 });
   }
