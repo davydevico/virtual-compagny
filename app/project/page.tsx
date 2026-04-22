@@ -46,7 +46,17 @@ export default function ProjectPage() {
 
   const fetchLogs = useCallback(async (projectId: string) => {
     const res = await fetch(`/api/project/${projectId}/logs`);
-    if (res.ok) setLogs(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setLogs(data);
+      // Arrêter le polling si un log de succès ou d'erreur finale est présent
+      const lastLog = data[data.length - 1];
+      if (lastLog?.log_type === 'success' || lastLog?.agent_name === 'Système' && lastLog?.log_type === 'error') {
+        setPolling(false);
+        setRunning(false);
+        fetchProjects();
+      }
+    }
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
@@ -117,18 +127,39 @@ export default function ProjectPage() {
       }
       setBrief('');
 
-      // 3. Déclencher l'orchestration sans bloquer (fire & forget)
-      fetch(`/api/project/${projectId}/run`, { method: 'POST' })
-        .then(async (runRes) => {
-          if (!runRes.ok) console.error('Erreur run:', await runRes.text());
-        })
-        .catch(err => console.error('Erreur run:', err))
-        .finally(() => {
-          setRunning(false);
-          setPolling(false);
-          fetchProjects();
-          if (newProject) fetchLogs(newProject.id);
-        });
+      // 3. Déclencher l'orchestration avec un timeout de sécurité côté client (3 min)
+      const controller  = new AbortController();
+      const safeTimeout = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+
+      const finishRun = async () => {
+        clearTimeout(safeTimeout);
+        setRunning(false);
+        setPolling(false);
+
+        // Si le projet est encore "running" (timeout Netlify), on le marque paused
+        const checkRes = await fetch('/api/project');
+        if (checkRes.ok) {
+          const all: Project[] = await checkRes.json();
+          const proj = all.find(p => p.id === projectId);
+          if (proj?.status === 'running') {
+            await fetch('/api/project', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ projectId, status: 'paused' }),
+            });
+          }
+        }
+
+        await fetchProjects();
+        if (projectId) {
+          const finalLogs = await fetch(`/api/project/${projectId}/logs`);
+          if (finalLogs.ok) setLogs(await finalLogs.json());
+        }
+      };
+
+      fetch(`/api/project/${projectId}/run`, { method: 'POST', signal: controller.signal })
+        .catch(() => {}) // timeout ou erreur réseau → on gère dans finally
+        .finally(finishRun);
 
     } catch (err) {
       console.error('Erreur lancement:', err);

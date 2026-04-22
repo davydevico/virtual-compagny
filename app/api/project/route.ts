@@ -11,6 +11,20 @@ export async function GET() {
   return NextResponse.json(projects ?? []);
 }
 
+// Met à jour le statut d'un projet (utilisé pour forcer paused/completed côté client)
+export async function PATCH(req: NextRequest) {
+  try {
+    const { projectId, status } = await req.json();
+    if (!projectId || !['running', 'completed', 'paused'].includes(status)) {
+      return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 });
+    }
+    await supabaseAdmin.from('projects').update({ status }).eq('id', projectId);
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
 // Crée uniquement le projet et retourne l'id immédiatement.
 // L'orchestration est déclenchée ensuite depuis le client via POST /api/project/[id]/run.
 export async function POST(req: NextRequest) {
