@@ -37,7 +37,7 @@ export default function RecruitPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const existingRoles = new Set(existingAgents.map(a => a.role));
+  const existingNames = new Set(existingAgents.map(a => a.name));
 
   const recruitCLevel = async (agent: typeof CLEVELS[0]) => {
     setRecruiting(agent.role);
@@ -108,7 +108,7 @@ export default function RecruitPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
             {CLEVELS.map(cl => {
-              const recruited = existingRoles.has(cl.role);
+              const recruited = existingNames.has(cl.name);
               const loading   = recruiting === cl.role;
               return (
                 <div
