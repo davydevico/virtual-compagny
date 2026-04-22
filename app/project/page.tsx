@@ -54,7 +54,7 @@ export default function ProjectPage() {
 
   useEffect(() => {
     if (polling && selected) {
-      pollRef.current = setInterval(() => fetchLogs(selected.id), 1500);
+      pollRef.current = setInterval(() => fetchLogs(selected.id), 800);
     } else {
       if (pollRef.current) clearInterval(pollRef.current);
     }

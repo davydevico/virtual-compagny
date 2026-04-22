@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Erreur création projet' }, { status: 500 });
     }
 
-    await addProjectLog(project.id, 'Système', `Projet créé : "${brief.trim()}"`, 'system');
+    await addProjectLog(project.id, 'Davy — CEO', `Nouveau projet lancé : "${brief.trim()}"`, 'system');
 
     return NextResponse.json({ projectId: project.id });
   } catch (err) {
