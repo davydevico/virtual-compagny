@@ -72,6 +72,65 @@ export async function callAgent(
 }
 
 /**
+ * Appelle Claude en tant qu'agent avec une image (Claude Vision).
+ * L'image est passée en base64 avec le message texte.
+ */
+export async function callAgentWithImage(
+  agentId:       string,
+  userMessage:   string,
+  imageBase64:   string,
+  imageMimeType: string,
+  projectId?:    string,
+  extraContext?:  string,
+): Promise<AgentResponse> {
+  const agent = await getAgentById(agentId);
+  if (!agent) throw new Error(`Agent ${agentId} introuvable`);
+
+  const memories   = await getLastMemories(agentId, 20);
+  const systemPrompt = buildSystemPrompt(agent, extraContext);
+
+  const historyMessages = memories.map(m => ({
+    role:    m.role as 'user' | 'assistant',
+    content: m.content,
+  }));
+
+  const validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+  type ImageMime = typeof validMimeTypes[number];
+  const safeMime: ImageMime = validMimeTypes.includes(imageMimeType as ImageMime)
+    ? (imageMimeType as ImageMime)
+    : 'image/jpeg';
+
+  const response = await anthropic.messages.create({
+    model:      MODEL,
+    max_tokens: 2048,
+    system:     systemPrompt,
+    messages:   [
+      ...historyMessages,
+      {
+        role:    'user',
+        content: [
+          {
+            type:   'image',
+            source: { type: 'base64', media_type: safeMime, data: imageBase64 },
+          },
+          { type: 'text', text: userMessage },
+        ],
+      },
+    ],
+  });
+
+  const assistantMessage = response.content
+    .filter(b => b.type === 'text')
+    .map(b => (b as Anthropic.TextBlock).text)
+    .join('');
+
+  await saveMemory(agentId, 'user',      userMessage,      projectId);
+  await saveMemory(agentId, 'assistant', assistantMessage, projectId);
+
+  return { agentId, agentName: agent.name, message: assistantMessage };
+}
+
+/**
  * Appelle Claude directement avec un prompt système et des messages,
  * sans persistance de mémoire (utilisé pour l'orchestration interne).
  */

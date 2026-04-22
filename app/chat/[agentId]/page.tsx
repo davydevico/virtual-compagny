@@ -14,18 +14,30 @@ interface Message {
   timestamp: string;
 }
 
+interface AttachedFile {
+  name:      string;
+  content:   string;
+  type:      'text' | 'image';
+  mimeType?: string;
+  preview?:  string;
+}
+
+const TEXT_EXTENSIONS = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|sql|html|css|xml|yaml|yml|sh|env)$/i;
+
 export default function ChatPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const router = useRouter();
 
-  const [agent, setAgent]       = useState<Agent | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput]       = useState('');
-  const [sending, setSending]   = useState(false);
-  const [loading, setLoading]   = useState(true);
+  const [agent, setAgent]             = useState<Agent | null>(null);
+  const [messages, setMessages]       = useState<Message[]>([]);
+  const [input, setInput]             = useState('');
+  const [sending, setSending]         = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const fileRef        = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -62,36 +74,101 @@ export default function ChatPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isText  = TEXT_EXTENSIONS.test(file.name) || file.type.startsWith('text/');
+
+    if (!isImage && !isText) {
+      alert('Format non supporté. Utilisez : images, .txt, .md, .csv, .json, .ts, .js, .py, .sql...');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    if (isImage) {
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64  = dataUrl.split(',')[1];
+        setAttachedFile({
+          name:     file.name,
+          content:  base64,
+          type:     'image',
+          mimeType: file.type,
+          preview:  dataUrl,
+        });
+      };
+    } else {
+      reader.readAsText(file);
+      reader.onload = () => {
+        setAttachedFile({
+          name:    file.name,
+          content: reader.result as string,
+          type:    'text',
+        });
+      };
+    }
+
+    e.target.value = '';
+  };
+
   const send = async () => {
-    if (!input.trim() || sending || !agent) return;
+    if ((!input.trim() && !attachedFile) || sending || !agent) return;
+
+    let messageText = input.trim();
+
+    // Injection du contenu texte dans le message
+    if (attachedFile?.type === 'text') {
+      const header = `[Fichier joint : ${attachedFile.name}]\n\`\`\`\n${attachedFile.content}\n\`\`\``;
+      messageText = messageText ? `${header}\n\n${messageText}` : header;
+    }
+
+    if (!messageText && attachedFile?.type === 'image') {
+      messageText = `[Image jointe : ${attachedFile.name}]`;
+    }
 
     const userMsg: Message = {
       id:        `tmp-${Date.now()}`,
       role:      'user',
-      content:   input.trim(),
+      content:   attachedFile?.type === 'text'
+        ? (input.trim() ? `📎 ${attachedFile.name} — ${input.trim()}` : `📎 ${attachedFile.name}`)
+        : (attachedFile?.type === 'image'
+          ? (input.trim() ? `🖼️ ${attachedFile.name} — ${input.trim()}` : `🖼️ ${attachedFile.name}`)
+          : messageText),
       timestamp: new Date().toISOString(),
     };
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    const fileToSend = attachedFile;
+    setAttachedFile(null);
     setSending(true);
 
     try {
+      const body: Record<string, unknown> = { agentId, message: messageText };
+      if (fileToSend?.type === 'image') {
+        body.imageData     = fileToSend.content;
+        body.imageMimeType = fileToSend.mimeType;
+      }
+
       const res = await fetch('/api/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ agentId, message: userMsg.content }),
+        body:    JSON.stringify(body),
       });
 
       if (res.ok) {
         const data = await res.json();
-        const assistantMsg: Message = {
+        setMessages(prev => [...prev, {
           id:        `tmp-assistant-${Date.now()}`,
           role:      'assistant',
           content:   data.message,
           timestamp: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, assistantMsg]);
+        }]);
       }
     } finally {
       setSending(false);
@@ -128,10 +205,7 @@ export default function ChatPage() {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <div className="px-6 py-4 border-b border-[#1e2d4a] flex items-center gap-4">
-        <Link
-          href="/dashboard"
-          className="text-slate-400 hover:text-white transition-colors text-sm"
-        >
+        <Link href="/dashboard" className="text-slate-400 hover:text-white transition-colors text-sm">
           ← Retour
         </Link>
 
@@ -166,6 +240,9 @@ export default function ChatPage() {
             <p className="text-sm text-slate-400 max-w-md mx-auto">
               {agent.role} chez SURGIFLOW. Comment puis-je vous aider ?
             </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Vous pouvez joindre des fichiers ou images via 📎
+            </p>
           </div>
         )}
 
@@ -174,7 +251,6 @@ export default function ChatPage() {
             key={msg.id}
             className={`flex gap-3 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            {/* Avatar */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
               msg.role === 'user'
                 ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
@@ -183,7 +259,6 @@ export default function ChatPage() {
               {msg.role === 'user' ? 'D' : agent.avatar}
             </div>
 
-            {/* Bubble */}
             <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${
               msg.role === 'user'
                 ? 'bg-blue-600 text-white rounded-tr-sm'
@@ -191,23 +266,18 @@ export default function ChatPage() {
             }`}>
               {msg.role === 'assistant' ? (
                 <div className="prose-dark text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               )}
               <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
-                {new Date(msg.timestamp).toLocaleTimeString('fr-FR', {
-                  hour: '2-digit', minute: '2-digit',
-                })}
+                {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
           </div>
         ))}
 
-        {/* Indicateur de frappe */}
         {sending && (
           <div className="flex gap-3 animate-fade-in">
             <div className="w-8 h-8 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-sm shrink-0">
@@ -228,7 +298,45 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="px-6 py-4 border-t border-[#1e2d4a]">
-        <div className="flex gap-3 items-end">
+        {/* Aperçu fichier joint */}
+        {attachedFile && (
+          <div className="mb-2 flex items-center gap-2 bg-[#1a2235] border border-[#1e2d4a] rounded-lg px-3 py-2">
+            {attachedFile.type === 'image' && attachedFile.preview ? (
+              <img src={attachedFile.preview} alt={attachedFile.name} className="w-8 h-8 rounded object-cover" />
+            ) : (
+              <span className="text-lg">📄</span>
+            )}
+            <span className="text-xs text-slate-300 flex-1 truncate">{attachedFile.name}</span>
+            <button
+              onClick={() => setAttachedFile(null)}
+              className="text-slate-500 hover:text-red-400 transition-colors text-sm ml-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-end">
+          {/* Bouton fichier */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.txt,.md,.csv,.json,.ts,.tsx,.js,.jsx,.py,.sql,.html,.css,.xml,.yaml,.yml,.sh"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={sending}
+            title="Joindre un fichier ou une image"
+            className="w-11 h-11 rounded-xl bg-[#1a2235] border border-[#1e2d4a] text-slate-400 flex items-center justify-center hover:border-blue-500/40 hover:text-blue-400 transition-colors disabled:opacity-50 shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+
           <textarea
             ref={inputRef}
             value={input}
@@ -240,9 +348,10 @@ export default function ChatPage() {
             style={{ minHeight: '46px' }}
             disabled={sending}
           />
+
           <button
             onClick={send}
-            disabled={!input.trim() || sending}
+            disabled={(!input.trim() && !attachedFile) || sending}
             className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {sending ? (

@@ -5,15 +5,24 @@ import PageHeader from '@/components/PageHeader';
 import LogEntry from '@/components/LogEntry';
 import type { Project, ProjectLog } from '@/lib/supabase';
 
+const TEXT_EXTENSIONS = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|sql|html|css|xml|yaml|yml|sh)$/i;
+
+interface AttachedFile {
+  name:    string;
+  content: string;
+}
+
 export default function ProjectPage() {
-  const [brief, setBrief]         = useState('');
-  const [projects, setProjects]   = useState<Project[]>([]);
-  const [selected, setSelected]   = useState<Project | null>(null);
-  const [logs, setLogs]           = useState<ProjectLog[]>([]);
-  const [running, setRunning]     = useState(false);
-  const [polling, setPolling]     = useState(false);
+  const [brief, setBrief]               = useState('');
+  const [projects, setProjects]         = useState<Project[]>([]);
+  const [selected, setSelected]         = useState<Project | null>(null);
+  const [logs, setLogs]                 = useState<ProjectLog[]>([]);
+  const [running, setRunning]           = useState(false);
+  const [polling, setPolling]           = useState(false);
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileRef    = useRef<HTMLInputElement>(null);
 
   const fetchProjects = useCallback(async () => {
     const res = await fetch('/api/project');
@@ -41,16 +50,41 @@ export default function ProjectPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [polling, selected, fetchLogs]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isText = TEXT_EXTENSIONS.test(file.name) || file.type.startsWith('text/');
+    if (!isText) {
+      alert('Format non supporté. Utilisez : .txt, .md, .csv, .json, .ts, .js, .py, .sql...');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsText(file);
+    reader.onload = () => {
+      setAttachedFile({ name: file.name, content: reader.result as string });
+    };
+    e.target.value = '';
+  };
+
   const launchProject = async () => {
     if (!brief.trim() || running) return;
     setRunning(true);
     setLogs([]);
 
+    let fullBrief = brief.trim();
+    if (attachedFile) {
+      fullBrief = `${fullBrief}\n\n[Fichier joint : ${attachedFile.name}]\n\`\`\`\n${attachedFile.content}\n\`\`\``;
+    }
+    setAttachedFile(null);
+
     try {
       const res = await fetch('/api/project', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ brief }),
+        body:    JSON.stringify({ brief: fullBrief }),
       });
       const data = await res.json();
 
@@ -121,6 +155,38 @@ export default function ProjectPage() {
               rows={3}
               disabled={running}
             />
+
+            {/* Fichier joint */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.md,.csv,.json,.ts,.tsx,.js,.jsx,.py,.sql,.html,.css,.xml,.yaml,.yml,.sh"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            {attachedFile ? (
+              <div className="mt-2 flex items-center gap-2 bg-[#0a0d14] border border-[#1e2d4a] rounded-lg px-3 py-2">
+                <span className="text-base">📄</span>
+                <span className="text-xs text-slate-300 flex-1 truncate">{attachedFile.name}</span>
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="text-slate-500 hover:text-red-400 transition-colors text-sm"
+                >✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={running}
+                className="mt-2 w-full py-2 rounded-lg border border-dashed border-[#1e2d4a] text-xs text-slate-500 hover:border-blue-500/40 hover:text-blue-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                Joindre un fichier (optionnel)
+              </button>
+            )}
+
             <button
               onClick={launchProject}
               disabled={!brief.trim() || running}
