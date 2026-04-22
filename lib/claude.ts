@@ -286,22 +286,28 @@ export async function orchestrateProject(
     .map(a => `- ${a.name} (${a.role}, ${a.department}) [id: ${a.id}]`)
     .join('\n');
 
-  const systemPrompt = `Orchestrateur SURGIFLOW. Décompose le brief en tâches JSON, 3 agents max.
-Agents: ${agentList}
-Format strict (JSON array uniquement, zéro markdown):
-[{"agentId":"uuid","agentName":"Prénom","department":"Dept","task":"tâche courte"}]`;
+  const systemPrompt = `Tu es l'orchestrateur de SURGIFLOW Company OS.
+Décompose le brief CEO en tâches concrètes. Sélectionne 3 agents MAX parmi la liste.
+
+Agents disponibles :
+${agentList}
+
+RÈGLE ABSOLUE : réponds UNIQUEMENT avec un tableau JSON valide, zéro texte autour, zéro markdown.
+Format exact :
+[{"agentId":"uuid-exact","agentName":"Prénom","department":"Département","task":"Description de la tâche"}]`;
 
   const raw = await callClaudeRaw(systemPrompt, [
-    { role: 'user', content: `Brief: "${brief}"` },
-  ], 512);
+    { role: 'user', content: `Brief CEO : "${brief}"\n\nRetourne le JSON.` },
+  ], 1024);
 
   try {
-    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const tasks = JSON.parse(cleaned) as ProjectTask[];
-    // Limite à 3 agents pour tenir dans le timeout Netlify (26s)
-    return tasks.slice(0, 3);
+    // Extrait le premier tableau JSON valide de la réponse
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('Pas de tableau JSON trouvé');
+    const tasks = JSON.parse(match[0]) as ProjectTask[];
+    return tasks.slice(0, 3); // max 3 agents pour le timeout Netlify
   } catch {
-    throw new Error(`Erreur parsing orchestration : ${raw.slice(0, 200)}`);
+    throw new Error(`Erreur parsing orchestration : ${raw.slice(0, 300)}`);
   }
 }
 
