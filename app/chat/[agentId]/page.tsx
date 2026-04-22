@@ -249,9 +249,10 @@ export default function ChatPage() {
         {messages.map(msg => (
           <div
             key={msg.id}
-            className={`flex gap-3 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            className={`flex gap-2.5 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
+            {/* Avatar */}
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 mt-5 ${
               msg.role === 'user'
                 ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
                 : 'bg-[#1a2235] border border-[#1e2d4a]'
@@ -259,35 +260,52 @@ export default function ChatPage() {
               {msg.role === 'user' ? 'D' : agent.avatar}
             </div>
 
-            <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-              msg.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tr-sm'
-                : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
-            }`}>
-              {msg.role === 'assistant' ? (
-                <div className="prose-dark text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              )}
-              <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
-                {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+            <div className={`max-w-[72%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+              {/* Nom + rôle */}
+              <p className={`text-[11px] font-semibold px-1 ${
+                msg.role === 'user'
+                  ? 'text-slate-400 text-right'
+                  : `${deptColors[agent.department] ?? 'text-slate-400'}`
+              }`}>
+                {msg.role === 'user' ? 'Davy — CEO' : `${agent.name} — ${agent.role}`}
               </p>
+
+              {/* Bulle */}
+              <div className={`rounded-2xl px-4 py-3 ${
+                msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-tr-sm'
+                  : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
+              }`}>
+                {msg.role === 'assistant' ? (
+                  <div className="prose-dark text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                )}
+                <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           </div>
         ))}
 
         {sending && (
-          <div className="flex gap-3 animate-fade-in">
-            <div className="w-8 h-8 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-sm shrink-0">
+          <div className="flex gap-2.5 animate-fade-in">
+            <div className="w-8 h-8 rounded-full bg-[#1a2235] border border-[#1e2d4a] flex items-center justify-center text-sm shrink-0 mt-5">
               {agent.avatar}
             </div>
-            <div className="bg-[#1a2235] border border-[#1e2d4a] rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1 items-center h-5">
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="flex flex-col gap-1">
+              <p className={`text-[11px] font-semibold px-1 ${deptColors[agent.department] ?? 'text-slate-400'}`}>
+                {agent.name} — {agent.role}
+              </p>
+              <div className="bg-[#1a2235] border border-[#1e2d4a] rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="flex gap-1 items-center h-5">
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
               </div>
             </div>
           </div>
