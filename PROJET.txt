@@ -7,7 +7,7 @@ qui automatise la communication chirurgien-patient via SMS/WhatsApp.
 Ce projet est l'OS interne de SURGIFLOW : une application web permettant
 au CEO (Davy) de gérer une équipe de 13 agents IA virtuels spécialisés,
 chacun ayant une expertise métier, une mémoire persistante, et la capacité
-de collaborer sur des projets concrets.
+de collaborer et déléguer de façon totalement autonome.
 
 
 STACK TECHNIQUE
@@ -15,7 +15,7 @@ STACK TECHNIQUE
 - Frontend  : Next.js 14 + TypeScript + Tailwind CSS (thème sombre)
 - Base de données : Supabase (PostgreSQL)
 - LLM : Claude API (claude-sonnet-4-20250514)
-- Déploiement : Vercel
+- Déploiement : Netlify (avec @netlify/plugin-nextjs)
 
 
 BASE DE DONNÉES (5 tables Supabase)
@@ -30,26 +30,26 @@ BASE DE DONNÉES (5 tables Supabase)
 LES 13 AGENTS (avec prompts SURGIFLOW détaillés)
 -------------------------------------------------
 Tech :
-  - Marcus — CTO
+  - Marcus — CTO (manager : délègue à Léa, Omar, Samy, Nina)
   - Léa — Développeuse Frontend (React/TypeScript)
   - Omar — Développeur Backend (Firebase/Firestore)
   - Samy — DevOps (CI/CD, infrastructure)
   - Nina — QA Médical (conformité, tests)
 
 Finance :
-  - Rachel — CFO
+  - Rachel — CFO (manager : délègue à Pierre, Julie)
   - Pierre — Comptable
   - Julie — Analyste Financier
 
 Marketing :
-  - Sophie — CMO
+  - Sophie — CMO (manager : délègue à Tom)
   - Tom — Expert SEO Médical
 
 Design :
-  - Inès — Lead Designer UI/UX Médical
+  - Inès — Designer UI/UX Médical
 
 Opérations :
-  - David — COO
+  - David — COO (manager : délègue à Camille, Alex)
   - Camille — Customer Success Manager
   - Alex — Product Manager
 
@@ -58,6 +58,20 @@ Chaque agent a un prompt système complet qui décrit :
   - Sa connaissance de SURGIFLOW (stack, modèle de données, marchés FR/IL)
   - Son ton et sa façon de travailler
   - Ses responsabilités et priorités actuelles
+  - Ses règles de délégation (managers uniquement)
+
+
+PHILOSOPHIE DU SYSTÈME DE DÉLÉGATION
+--------------------------------------
+Le CEO parle aux managers (Marcus, Rachel, Sophie, etc.).
+Les managers délèguent automatiquement à leur équipe.
+Les agents travaillent et livrent des livrables concrets.
+Le manager synthétise et rapporte au CEO.
+Le CEO n'a rien d'autre à faire que valider.
+
+Les agents NE PRÉTENDENT PAS avoir exécuté du code ou poussé sur GitHub.
+Ils livrent des plans d'action, du code prêt à copier-coller, des configs
+et des instructions ultra-détaillées que le CEO peut intégrer lui-même.
 
 
 FONCTIONNALITÉS
@@ -75,87 +89,147 @@ FONCTIONNALITÉS
    - À chaque recrutement, Claude génère automatiquement 2-4 demandes de recrutement
      pour les subordonnés de ce C-Level
    - Les demandes arrivent dans un panneau de validation
-   - CEO approuve ou refuse chaque demande (bouton individuel ou "Tout approuver")
+   - CEO approuve ou refuse chaque demande
    - À l'approbation, l'agent est créé en DB et devient actif
-   - Toasts de feedback, loading states, gestion des erreurs réseau
+   - Matching recrutement par nom (pas par rôle) pour éviter les faux négatifs
 
-3. CHAT 1-TO-1 (app/chat/[agentId]/page.tsx)
-   - Interface chat avec n'importe quel agent de l'équipe
-   - Mémoire persistante : l'agent relit ses derniers échanges avec le CEO avant de répondre
-   - Les réponses sont en Markdown (rendu avec react-markdown)
-   - Textarea auto-resize, indicateur de frappe animé
-   - Rollback du message si erreur réseau
-   - Bouton pour effacer l'affichage (la mémoire reste en DB)
+3. CHAT 1-TO-1 avec DÉLÉGATION AUTONOME (app/chat/[agentId]/page.tsx)
+
+   Flow complet quand le CEO parle à un manager (ex : Marcus) :
+
+   ÉTAPE 1 — Réponse initiale du manager (2-5 sec)
+     → POST /api/chat : Marcus répond, retourne sa réponse + liste de délégations JSON
+     → La réponse s'affiche immédiatement dans le chat
+
+   ÉTAPE 2 — Cartes de délégation apparaissent dans le fil
+     → Pour chaque agent délégué (Samy, Léa, Omar, Nina...) une carte s'insère
+       dans le chat avec le statut "En attente" (point gris)
+     → Les cartes montrent le brief exact envoyé par le manager
+
+   ÉTAPE 3 — Brief des agents (par paquets de 2 pour éviter timeout Netlify)
+     → POST /api/brief pour chaque agent
+     → La carte passe en "En cours..." (point orange pulsant + dots animés)
+     → Quand l'agent répond, carte passe en "Livré ✓" (point vert)
+     → Retry automatique (1 fois) si timeout ou erreur réseau
+
+   ÉTAPE 4 — Synthèse du manager
+     → POST /api/synthesize : le manager reçoit tous les livrables et produit
+       un guide d'implémentation complet pour le CEO
+     → Format imposé : 🎯 Mission / 📋 Étapes détaillées / ⚡ Ordre d'exécution / ✔️ Vérification
+
+   INDICATEURS VISUELS :
+   - Avatar du manager avec anneau violet pulsant + "orchestre l'équipe..." pendant le process
+   - Chaque agent apparaît comme une ligne séparée dans le fil de chat
+   - Point de couleur (gris/orange/vert/rouge) mis à jour en temps réel
+   - Bouton "Voir le détail ↓" pour lire le livrable complet de chaque agent
+   - Lien direct vers le chat de chaque agent délégué
+
+   PERSISTANCE DE SESSION :
+   - Les cartes de délégation sont sauvegardées en localStorage (TTL 30 min)
+   - Si l'utilisateur recharge la page, la session est restaurée
+   - Les agents "En cours" au moment du refresh passent en "Erreur" (honnêteté)
+   - Avertissement navigateur (beforeunload) si rafraîchissement pendant le process
+   - Session effacée proprement dès que la synthèse est reçue
+
+   MÉMOIRE PROPRE :
+   - Seuls les vrais messages CEO ↔ agent sont sauvegardés en DB
+   - Les prompts internes (briefs de délégation, synthèse) ne polluent pas la mémoire
+   - Filtre au chargement pour nettoyer d'éventuels messages internes anciens
+
+   AUTRES FEATURES CHAT :
+   - Joindre des fichiers (texte : contenu injecté dans le message, image : Claude Vision)
+   - Bouton téléchargement .md sur les messages avec du code (nomé agent-livrable-date.md)
+   - Mémoire persistante (10 derniers échanges utilisés comme contexte Claude)
+   - Markdown rendu avec react-markdown + remark-gfm
 
 4. PROJETS MULTI-AGENTS (app/project/page.tsx)
-   Architecture en 2 étapes pour un vrai temps réel :
-   Étape 1 : POST /api/project/create → crée le projet en DB, retourne l'ID immédiatement
-   Étape 2 : POST /api/project/[id]/run → lance l'orchestration Claude (peut durer plusieurs minutes)
+   Architecture en 2 étapes pour éviter les timeouts Netlify :
+   Étape 1 : POST /api/project → crée le projet en DB, retourne l'ID immédiatement
+   Étape 2 : POST /api/project/[id]/run → lance l'orchestration (fire-and-forget)
 
-   Pendant l'étape 2, le client poll /api/project/[id]/logs toutes les 1.5s
-   et affiche les logs en temps réel.
+   Le client poll /api/project/[id]/logs toutes les 800ms
+   et affiche les logs en temps réel (typés : system / thinking / output / success / error).
 
    Flow d'orchestration :
    - Claude décompose le brief en tâches par agent (3 à 6 agents)
    - Chaque agent traite sa tâche dans l'ordre
-   - Chaque agent reçoit les outputs des agents précédents comme contexte
-   - Les logs sont typés : system / thinking / output / success / error
-   - Timeout Vercel configuré à 300s (5 minutes)
+   - Les logs affichent "Nom — Rôle" pour chaque agent
+   - Timeout client de 3 minutes avec AbortController
+   - Si timeout → statut automatiquement mis à "paused" via PATCH /api/project
 
 
 APPELS CLAUDE API (lib/claude.ts)
 ----------------------------------
 Chaque appel suit ce pattern :
 1. Récupérer le profil de l'agent depuis Supabase
-2. Récupérer les 20 derniers messages depuis memories
-3. Construire le system prompt : personality + knowledge SURGIFLOW
+2. Récupérer les 10 derniers messages depuis memories
+3. Construire le system prompt : personality + knowledge SURGIFLOW + règles de délégation
 4. Appeler claude-sonnet-4-20250514
-5. Sauvegarder user message + réponse en memories
-6. Retourner la réponse
+5. Parser les blocs <DELEGATE>...</DELEGATE> (N blocs possibles pour N délégations)
+6. Sauvegarder user message + réponse en memories (sauf si options.saveUserMessage = false)
+7. Retourner la réponse + delegations[]
 
 Fonctions principales :
-- callAgent() : appel avec mémoire persistante (chat et projets)
+- callAgent(agentId, message, projectId?, extraContext?, options?)
+    → options.saveUserMessage : false pour les briefs internes (évite pollution mémoire)
+    → options.maxTokens : override du max_tokens (1024 pour briefs, 2048 par défaut)
+- callAgentWithImage() : appel avec image base64 (Claude Vision)
 - callClaudeRaw() : appel sans persistance (orchestration interne)
 - orchestrateProject() : demande à Claude de décomposer un brief en tâches JSON
 - generateRecruitmentRequests() : génère les demandes de recrutement d'un C-Level
+- parseDelegations() : extrait tous les blocs <DELEGATE> d'une réponse (regex global)
+
+Format de délégation dans les réponses Claude :
+<DELEGATE>{"agentName": "Léa", "agentRole": "Développeuse Frontend", "task": "..."}</DELEGATE>
+<DELEGATE>{"agentName": "Samy", "agentRole": "DevOps", "task": "..."}</DELEGATE>
+(autant de blocs que nécessaire)
 
 
 STRUCTURE DES FICHIERS
 ----------------------
 app/
   api/
-    agents/route.ts          → GET liste tous les agents
-    agents/[id]/route.ts     → GET un agent par ID
-    chat/route.ts            → POST appel Claude pour le chat
-    project/route.ts         → GET liste des projets
-    project/create/route.ts  → POST créer un projet (retourne ID immédiatement)
-    project/[id]/run/route.ts→ POST lancer l'orchestration multi-agents
-    project/[id]/logs/route.ts → GET logs d'un projet
-    memories/[agentId]/route.ts → GET historique d'un agent
-    recruit/route.ts         → GET/POST/PATCH recrutement
-  dashboard/
-    page.tsx                 → vue équipe organigramme
-    loading.tsx              → skeleton loading
-  recruit/page.tsx           → recrutement + validation
-  project/page.tsx           → lancement projet + logs temps réel
-  chat/[agentId]/page.tsx    → chat avec un agent
-  layout.tsx                 → layout global avec sidebar
-  not-found.tsx              → page 404
-  error.tsx                  → error boundary
+    agents/route.ts              → GET liste tous les agents
+    agents/[id]/route.ts         → GET un agent par ID
+    chat/route.ts                → POST appel Claude pour le chat (retourne réponse + delegations[])
+    brief/route.ts               → POST brief un seul agent (1024 tokens, sans save user message)
+    synthesize/route.ts          → POST synthèse du manager (guide d'implémentation CEO)
+    delegate/route.ts            → POST délégation legacy (conservé)
+    project/route.ts             → GET liste des projets / POST créer / PATCH mettre à jour statut
+    project/[id]/run/route.ts    → POST lancer l'orchestration multi-agents
+    project/[id]/logs/route.ts   → GET logs d'un projet (avec join agents pour rôle/département)
+    memories/[agentId]/route.ts  → GET 50 derniers messages d'un agent
+    recruit/route.ts             → GET/POST/PATCH recrutement
+  dashboard/page.tsx             → vue équipe organigramme
+  recruit/page.tsx               → recrutement + validation (matching par nom)
+  project/page.tsx               → lancement projet + logs temps réel
+  chat/[agentId]/page.tsx        → chat avec délégation autonome en temps réel
+  layout.tsx                     → layout global (h-screen, sidebar sticky)
 
 components/
-  Sidebar.tsx                → navigation principale
-  AgentCard.tsx              → carte agent cliquable (lien vers chat)
-  PageHeader.tsx             → header de page avec titre/actions
-  LogEntry.tsx               → entrée de log colorée par type
+  Sidebar.tsx                    → navigation sticky (md: h-screen sticky top-0, mobile: drawer)
+  AgentCard.tsx                  → carte agent cliquable
+  PageHeader.tsx                 → header de page responsive
+  LogEntry.tsx                   → entrée de log avec nom + rôle de l'agent
 
 lib/
-  supabase.ts                → clients Supabase (anon + service role) + types + helpers
-  claude.ts                  → wrapper Claude API complet
+  supabase.ts                    → clients Supabase (anon + service role) + types + helpers
+  claude.ts                      → wrapper Claude API complet + parseDelegations
 
 supabase/
   migrations/001_initial_schema.sql → schéma SQL + RLS
-  seed.ts                    → insertion des 13 agents
+  seed.ts                            → insertion des 13 agents avec hiérarchie manager_id
+
+
+GESTION DES TIMEOUTS NETLIFY
+-----------------------------
+Netlify coupe les connexions inactives après ~26 secondes.
+Stratégies utilisées :
+- Briefs des agents par paquets de 2 (pas tout en parallèle)
+- max_tokens réduit à 1024 pour les briefs (réponses 2x plus rapides)
+- Retry automatique (1 tentative) avec délai de 2s si erreur
+- export const maxDuration = 300 sur les routes longues
+- Projet : fire-and-forget + polling côté client
 
 
 SÉCURITÉ
@@ -164,7 +238,7 @@ SÉCURITÉ
 - RLS (Row Level Security) activé sur toutes les tables Supabase
 - Aucune clé exposée côté client
 - Tous les appels Claude côté serveur (Next.js API routes)
-- Security headers HTTP (X-Frame-Options, nosniff, Referrer-Policy)
+- Prompts internes non sauvegardés en mémoire (pas de pollution CEO)
 
 
 VARIABLES D'ENVIRONNEMENT REQUISES
@@ -175,10 +249,21 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
 
-DÉPLOIEMENT
------------
+DÉPLOIEMENT (Netlify)
+----------------------
 1. Créer un projet sur supabase.com
 2. Exécuter supabase/migrations/001_initial_schema.sql dans le SQL Editor
 3. Remplir .env.local et lancer : npm run seed
-4. Importer le repo sur vercel.com, renseigner les 4 variables d'env
-5. Deploy automatique sur chaque push sur main
+4. Importer le repo sur netlify.com, renseigner les 4 variables d'env dans Site Settings
+5. netlify.toml configure le build (command: npm run build, publish: .next, NODE_VERSION: 20)
+6. @netlify/plugin-nextjs gère les API routes comme des Netlify Functions
+
+
+BUGS CONNUS ET RÉSOLUS
+-----------------------
+- Inès apparaissait "non recrutée" → matching par nom au lieu de rôle (rôles différents entre CLEVELS et seed)
+- Sidebar disparaissait au scroll → body h-screen + sidebar sticky top-0 h-screen
+- Messages internes sauvegardés comme messages CEO → option saveUserMessage: false
+- Tout perdre au refresh pendant délégation → localStorage + beforeunload warning
+- 3/4 agents timeout en parallèle → paquets de 2 + retry + tokens réduits
+- Cartes de délégation invisibles (cachées dans la bulle Marcus) → messages "delegation" séparés dans le fil
