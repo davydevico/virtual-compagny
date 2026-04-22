@@ -133,6 +133,13 @@ function DelegationRow({ delegation, fromAgent, targetAgent }: {
   );
 }
 
+const SESSION_KEY = (agentId: string) => `deleg_session_${agentId}`;
+
+interface DelegSession {
+  messages: Message[];
+  savedAt:  number;
+}
+
 export default function ChatPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const router = useRouter();
@@ -155,20 +162,64 @@ export default function ChatPage() {
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
+  // ── Sauvegarde session localStorage quand les messages changent ──────────
+  useEffect(() => {
+    if (!agentId || messages.length === 0) return;
+    const hasDelegation = messages.some(m => m.role === 'delegation');
+    if (!hasDelegation) return; // ne sauvegarder que les sessions avec délégation
+    const session: DelegSession = { messages, savedAt: Date.now() };
+    try { localStorage.setItem(SESSION_KEY(agentId), JSON.stringify(session)); } catch {}
+  }, [agentId, messages]);
+
+  // ── Avertissement navigateur si process actif ────────────────────────────
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!sending) return;
+      e.preventDefault();
+      e.returnValue = 'Marcus orchestre encore son équipe — si vous quittez, vous perdrez la session en cours.';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [sending]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
+
     const [agentRes, memRes] = await Promise.all([
       fetch(`/api/agents`),
       fetch(`/api/memories/${agentId}`),
     ]);
 
+    // Charger les agents en premier (nécessaire pour restauration aussi)
+    let allAgents: Agent[] = [];
     if (agentRes.ok) {
-      const allAgents: Agent[] = await agentRes.json();
+      allAgents = await agentRes.json();
       setAgents(allAgents);
       const found = allAgents.find(a => a.id === agentId);
       if (!found) { router.push('/dashboard'); return; }
       setAgent(found);
     }
+
+    // ── Restaurer session de délégation si elle existe (< 30 min) ─────────
+    try {
+      const raw = localStorage.getItem(SESSION_KEY(agentId));
+      if (raw) {
+        const session: DelegSession = JSON.parse(raw);
+        const age = Date.now() - session.savedAt;
+        if (age < 30 * 60 * 1000 && session.messages.length > 0) {
+          const restored = session.messages.map(m =>
+            m.role === 'delegation' && m.delegation?.status === 'in_progress'
+              ? { ...m, delegation: { ...m.delegation, status: 'error' as DelegationStatus } }
+              : m,
+          );
+          setMessages(restored);
+          setLoading(false);
+          return;
+        } else {
+          localStorage.removeItem(SESSION_KEY(agentId));
+        }
+      }
+    } catch {}
 
     if (memRes.ok) {
       const memories: Memory[] = await memRes.json();
@@ -353,6 +404,8 @@ export default function ChatPage() {
         content:   synthData.message ?? '(Synthèse indisponible)',
         timestamp: new Date().toISOString(),
       }]);
+      // Session terminée proprement → supprimer du localStorage
+      try { localStorage.removeItem(SESSION_KEY(agentId)); } catch {}
     } finally {
       setSending(false);
       inputRef.current?.focus();
