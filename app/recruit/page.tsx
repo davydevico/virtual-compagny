@@ -4,24 +4,27 @@ import { useState, useEffect, useCallback } from 'react';
 import PageHeader from '@/components/PageHeader';
 import type { RecruitmentRequest } from '@/lib/supabase';
 
-// C-Levels prédéfinis (recrutement direct CEO)
 const CLEVELS = [
-  { name: 'Marcus', role: 'CTO',  department: 'Tech',       avatar: '⚡', desc: 'Directeur Technique' },
-  { name: 'Rachel', role: 'CFO',  department: 'Finance',    avatar: '💰', desc: 'Directrice Financière' },
-  { name: 'Sophie', role: 'CMO',  department: 'Marketing',  avatar: '📢', desc: 'Directrice Marketing' },
-  { name: 'Inès',   role: 'Lead Designer', department: 'Design', avatar: '✏️', desc: 'Designer UI/UX' },
-  { name: 'David',  role: 'COO',  department: 'Opérations', avatar: '⚙️', desc: 'Directeur Opérations' },
+  { name: 'Marcus', role: 'CTO',          department: 'Tech',       avatar: '⚡', desc: 'Directeur Technique' },
+  { name: 'Rachel', role: 'CFO',          department: 'Finance',    avatar: '💰', desc: 'Directrice Financière' },
+  { name: 'Sophie', role: 'CMO',          department: 'Marketing',  avatar: '📢', desc: 'Directrice Marketing' },
+  { name: 'Inès',   role: 'Lead Designer',department: 'Design',     avatar: '✏️', desc: 'Designer UI/UX' },
+  { name: 'David',  role: 'COO',          department: 'Opérations', avatar: '⚙️', desc: 'Directeur Opérations' },
 ];
+
+const DEPT_COLORS: Record<string, string> = {
+  Tech: 'text-blue-400', Finance: 'text-emerald-400', Marketing: 'text-violet-400',
+  Design: 'text-pink-400', Opérations: 'text-amber-400',
+};
 
 interface AgentLike { name: string; role: string; department: string; avatar: string }
 
 export default function RecruitPage() {
-  const [existingAgents, setExistingAgents]   = useState<AgentLike[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<RecruitmentRequest[]>([]);
-  const [loading, setLoading]   = useState(false);
+  const [existingAgents,   setExistingAgents]   = useState<AgentLike[]>([]);
+  const [pendingRequests,  setPendingRequests]  = useState<RecruitmentRequest[]>([]);
   const [recruiting, setRecruiting] = useState<string | null>(null);
-  const [approving, setApproving]   = useState<string | null>(null);
-  const [message, setMessage]       = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [approving,  setApproving]  = useState<string | null>(null);
+  const [message,    setMessage]    = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchData = useCallback(async () => {
     const [agentsRes, requestsRes] = await Promise.all([
@@ -40,24 +43,19 @@ export default function RecruitPage() {
     setRecruiting(agent.role);
     setMessage(null);
     try {
-      const res = await fetch('/api/recruit', {
+      const res  = await fetch('/api/recruit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(agent),
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage({
-          type: 'success',
-          text: `${agent.name} recruté·e ! ${data.recruitmentRequestsCreated} demandes de recrutement générées.`,
-        });
+        setMessage({ type: 'success', text: `${agent.name} recruté·e ! ${data.recruitmentRequestsCreated} demandes générées.` });
         await fetchData();
       } else {
         setMessage({ type: 'error', text: data.error ?? 'Erreur recrutement' });
       }
-    } finally {
-      setRecruiting(null);
-    }
+    } finally { setRecruiting(null); }
   };
 
   const handleRequest = async (id: string, action: 'approve' | 'reject') => {
@@ -69,76 +67,75 @@ export default function RecruitPage() {
         body: JSON.stringify({ id, action }),
       });
       if (res.ok) {
-        setMessage({
-          type: 'success',
-          text: action === 'approve' ? 'Agent créé et activé !' : 'Demande refusée.',
-        });
+        setMessage({ type: 'success', text: action === 'approve' ? 'Agent créé et activé !' : 'Demande refusée.' });
         await fetchData();
       }
-    } finally {
-      setApproving(null);
-    }
+    } finally { setApproving(null); }
   };
 
   return (
     <div className="min-h-screen">
       <PageHeader
         title="Recrutement"
-        subtitle="Construisez votre équipe de direction et validez les demandes"
+        subtitle="Construisez votre équipe et validez les demandes"
         icon="👥"
         actions={
-          <span className="text-sm text-slate-400">
-            {existingAgents.length} agent{existingAgents.length > 1 ? 's' : ''} actif{existingAgents.length > 1 ? 's' : ''}
+          <span className="text-xs text-slate-500 font-medium">
+            {existingAgents.length} agent{existingAgents.length !== 1 ? 's' : ''}
           </span>
         }
       />
 
-      <div className="px-8 py-6 space-y-8">
-        {/* Message feedback */}
+      <div className="px-4 md:px-6 py-4 space-y-6">
+        {/* Feedback */}
         {message && (
-          <div className={`rounded-lg p-4 text-sm border animate-fade-in ${
+          <div className={`rounded-xl p-3.5 text-sm border animate-fade-in flex items-start gap-2.5 ${
             message.type === 'success'
-              ? 'bg-green-500/10 border-green-500/30 text-green-400'
-              : 'bg-red-500/10 border-red-500/30 text-red-400'
+              ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/8 border-red-500/20 text-red-400'
           }`}>
-            {message.type === 'success' ? '✅' : '❌'} {message.text}
+            <span className="text-base mt-0.5">{message.type === 'success' ? '✅' : '❌'}</span>
+            <span>{message.text}</span>
           </div>
         )}
 
-        {/* Section C-Levels */}
+        {/* C-Levels */}
         <section>
-          <h2 className="text-base font-semibold text-white mb-1">Direction — Recrutement direct CEO</h2>
-          <p className="text-sm text-slate-400 mb-4">
-            Recrutez les C-Levels. Chaque recrutement génère automatiquement des demandes de recrutement pour leurs équipes.
-          </p>
+          <div className="mb-3">
+            <h2 className="text-sm font-bold text-white">Direction</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Recrutez les C-Levels — chaque recrutement génère automatiquement des demandes pour leurs équipes.</p>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
             {CLEVELS.map(cl => {
-              const alreadyRecruited = existingRoles.has(cl.role);
-              const isLoading = recruiting === cl.role;
-
+              const recruited = existingRoles.has(cl.role);
+              const loading   = recruiting === cl.role;
               return (
-                <div key={cl.role} className={`rounded-xl border p-4 transition-all ${
-                  alreadyRecruited
-                    ? 'bg-green-500/5 border-green-500/20'
-                    : 'bg-[#1a2235] border-[#1e2d4a] hover:border-blue-500/30'
-                }`}>
+                <div
+                  key={cl.role}
+                  className={`rounded-2xl border p-4 transition-all ${
+                    recruited
+                      ? 'bg-emerald-500/5 border-emerald-500/15'
+                      : 'bg-[#161b27] border-white/6 hover:border-white/12'
+                  }`}
+                >
                   <div className="text-3xl mb-3">{cl.avatar}</div>
-                  <div className="font-semibold text-white text-sm">{cl.name}</div>
-                  <div className="text-xs text-slate-400">{cl.desc}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{cl.department}</div>
+                  <p className="text-sm font-semibold text-white leading-tight">{cl.name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{cl.desc}</p>
+                  <p className={`text-[11px] font-medium mt-1 ${DEPT_COLORS[cl.department] ?? 'text-slate-400'}`}>{cl.department}</p>
 
-                  {alreadyRecruited ? (
-                    <span className="mt-3 inline-flex items-center gap-1 text-xs text-green-400">
-                      ✓ Recruté·e
-                    </span>
+                  {recruited ? (
+                    <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Recruté·e
+                    </div>
                   ) : (
                     <button
                       onClick={() => recruitCLevel(cl)}
-                      disabled={isLoading}
-                      className="mt-3 w-full px-3 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 text-xs font-medium border border-blue-500/20 hover:bg-blue-600/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={loading}
+                      className="mt-3 w-full px-2.5 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 text-xs font-semibold border border-blue-500/20 hover:bg-blue-600/20 transition-colors disabled:opacity-40"
                     >
-                      {isLoading ? '⏳ Recrutement...' : '+ Recruter'}
+                      {loading ? '⏳ …' : '+ Recruter'}
                     </button>
                   )}
                 </div>
@@ -147,66 +144,60 @@ export default function RecruitPage() {
           </div>
         </section>
 
-        {/* Section demandes en attente */}
+        {/* Demandes en attente */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-base font-semibold text-white">Demandes en attente</h2>
+          <div className="flex items-center gap-2.5 mb-3">
+            <h2 className="text-sm font-bold text-white">Demandes en attente</h2>
             {pendingRequests.length > 0 && (
-              <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs px-2 py-0.5 rounded-full">
+              <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-bold px-2 py-0.5 rounded-full">
                 {pendingRequests.length}
               </span>
             )}
           </div>
 
           {pendingRequests.length === 0 ? (
-            <div className="rounded-xl border border-[#1e2d4a] bg-[#111827] p-8 text-center">
+            <div className="rounded-2xl border border-white/5 bg-[#0d1117] p-8 text-center">
               <div className="text-3xl mb-2">📭</div>
-              <p className="text-sm text-slate-400">Aucune demande en attente</p>
+              <p className="text-sm text-slate-500">Aucune demande en attente</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {pendingRequests.map(req => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const requester = (req as any).agents;
-                const isLoading = approving === req.id;
+                const loading   = approving === req.id;
 
                 return (
-                  <div
-                    key={req.id}
-                    className="bg-[#1a2235] border border-[#1e2d4a] rounded-xl p-4 hover:border-blue-500/20 transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          {requester && (
-                            <span className="text-xs text-slate-500">
-                              {requester.avatar} {requester.name} ({requester.role}) demande :
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-semibold text-white text-sm">{req.role_needed}</h3>
-                        <span className="text-xs text-slate-400">{req.department}</span>
-                        <p className="text-sm text-slate-300 mt-2 leading-relaxed">{req.reason}</p>
-                        <p className="text-xs text-slate-500 mt-2">
-                          {new Date(req.created_at).toLocaleDateString('fr-FR', {
-                            day: 'numeric', month: 'long', year: 'numeric',
-                          })}
+                  <div key={req.id} className="bg-[#161b27] border border-white/6 rounded-2xl p-4 hover:border-white/10 transition-all">
+                    <div className="flex items-start gap-3 md:gap-4">
+                      <div className="flex-1 min-w-0">
+                        {requester && (
+                          <p className="text-[11px] text-slate-500 mb-1.5">
+                            {requester.avatar} <span className="font-medium text-slate-400">{requester.name}</span> ({requester.role}) demande :
+                          </p>
+                        )}
+                        <p className="text-sm font-bold text-white">{req.role_needed}</p>
+                        <span className={`text-[11px] font-medium ${DEPT_COLORS[req.department] ?? 'text-slate-400'}`}>{req.department}</span>
+                        <p className="text-xs text-slate-400 mt-2 leading-relaxed">{req.reason}</p>
+                        <p className="text-[11px] text-slate-600 mt-2">
+                          {new Date(req.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
                         </p>
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0">
                         <button
                           onClick={() => handleRequest(req.id, 'approve')}
-                          disabled={isLoading}
-                          className="px-4 py-2 rounded-lg bg-green-600/10 text-green-400 text-xs font-medium border border-green-500/20 hover:bg-green-600/20 transition-colors disabled:opacity-50"
+                          disabled={loading}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40 whitespace-nowrap"
                         >
-                          {isLoading ? '⏳' : '✅ Approuver'}
+                          {loading ? '⏳' : '✓ Approuver'}
                         </button>
                         <button
                           onClick={() => handleRequest(req.id, 'reject')}
-                          disabled={isLoading}
-                          className="px-4 py-2 rounded-lg bg-red-600/10 text-red-400 text-xs font-medium border border-red-500/20 hover:bg-red-600/20 transition-colors disabled:opacity-50"
+                          disabled={loading}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-semibold border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-40"
                         >
-                          ❌ Refuser
+                          Refuser
                         </button>
                       </div>
                     </div>

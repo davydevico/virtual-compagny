@@ -3,76 +3,96 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary:   #0a0d14;
-  --bg-secondary: #111827;
-  --bg-card:      #1a2235;
+  --bg-primary:   #080b12;
+  --bg-secondary: #0d1117;
+  --bg-card:      #161b27;
   --border:       #1e2d4a;
   --text-primary: #f1f5f9;
   --text-muted:   #64748b;
   --accent:       #3b82f6;
-  --accent-hover: #2563eb;
-  --success:      #22c55e;
-  --warning:      #f59e0b;
-  --error:        #ef4444;
+  --font-inter:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+* { box-sizing: border-box; padding: 0; margin: 0; }
 
-html,
-body {
+html, body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-inter);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar custom */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e2d4a; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #2d4066; }
 
-/* Prose styles for agent responses */
+/* ── Prose / markdown ── */
 .prose-dark h1, .prose-dark h2, .prose-dark h3 {
   color: #f1f5f9;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+  font-weight: 600;
+  margin-top: 1.1rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
 }
-.prose-dark p { margin-bottom: 0.75rem; line-height: 1.6; }
-.prose-dark ul, .prose-dark ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
-.prose-dark li { margin-bottom: 0.25rem; }
-.prose-dark strong { color: #e2e8f0; }
+.prose-dark h1 { font-size: 1.15em; }
+.prose-dark h2 { font-size: 1.05em; }
+.prose-dark h3 { font-size: 0.97em; color: #cbd5e1; }
+.prose-dark p  { margin-bottom: 0.65rem; line-height: 1.65; color: #cbd5e1; }
+.prose-dark ul, .prose-dark ol { margin-left: 1.4rem; margin-bottom: 0.65rem; }
+.prose-dark li { margin-bottom: 0.2rem; color: #cbd5e1; }
+.prose-dark strong { color: #f1f5f9; font-weight: 600; }
+.prose-dark em    { color: #94a3b8; }
 .prose-dark code {
-  background: #1e293b;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.875em;
+  background: rgba(99,120,160,0.12);
+  border: 1px solid rgba(99,120,160,0.2);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 0.83em;
   color: #7dd3fc;
+  font-family: 'SF Mono', 'Fira Code', monospace;
 }
 .prose-dark pre {
-  background: #1e293b;
+  background: #0d1117;
+  border: 1px solid #1e2d4a;
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow-x: auto;
   margin-bottom: 0.75rem;
 }
+.prose-dark pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+  color: #e2e8f0;
+}
 .prose-dark blockquote {
   border-left: 3px solid #3b82f6;
-  padding-left: 1rem;
+  padding-left: 0.9rem;
   color: #94a3b8;
   margin-bottom: 0.75rem;
+  font-style: italic;
+}
+.prose-dark hr { border-color: #1e2d4a; margin: 1rem 0; }
+.prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 0.75rem; font-size: 0.85em; }
+.prose-dark th { background: #1a2235; color: #e2e8f0; font-weight: 600; padding: 0.5rem 0.75rem; border: 1px solid #1e2d4a; text-align: left; }
+.prose-dark td { padding: 0.4rem 0.75rem; border: 1px solid #1e2d4a; color: #cbd5e1; }
+.prose-dark tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+/* ── Animations ── */
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+
+.animate-fade-in  { animation: fadeIn  0.25s ease-out forwards; }
+.animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+
+/* ── Glassmorphism utility ── */
+.glass {
+  background: rgba(22, 27, 39, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }

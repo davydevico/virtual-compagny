@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title:       'SURGIFLOW — Company OS',
@@ -9,10 +12,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
-      <body className="flex min-h-screen bg-[#0a0d14]">
+    <html lang="fr" className={inter.variable}>
+      <body className="flex min-h-screen bg-[#080b12] antialiased">
         <Sidebar />
-        <main className="flex-1 overflow-auto">
+        {/* Décalage top sur mobile pour la top bar fixe */}
+        <main className="flex-1 overflow-auto pt-14 md:pt-0 min-w-0">
           {children}
         </main>
       </body>
