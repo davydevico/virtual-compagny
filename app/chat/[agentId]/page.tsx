@@ -17,15 +17,16 @@ interface Delegation {
   task:             string;
   delegateMessage?: string;
   status?:          DelegationStatus;
-  autoExecuted?:    boolean;
 }
+
+type MessageRole = 'user' | 'assistant' | 'delegation';
 
 interface Message {
   id:           string;
-  role:         'user' | 'assistant';
+  role:         MessageRole;
   content:      string;
   timestamp:    string;
-  delegations?: Delegation[];
+  delegation?:  Delegation; // pour role === 'delegation'
 }
 
 interface AttachedFile {
@@ -38,91 +39,96 @@ interface AttachedFile {
 
 const TEXT_EXTENSIONS = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|sql|html|css|xml|yaml|yml|sh|env)$/i;
 
-function DelegationThread({ delegation, fromAgent, targetAgent, index, total }: {
+function DelegationRow({ delegation, fromAgent, targetAgent }: {
   delegation:  Delegation;
   fromAgent:   Agent;
   targetAgent: Agent | null;
-  index?:      number;
-  total?:      number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const status = delegation.status ?? 'done';
 
-  const statusConfig = {
-    pending:     { color: 'text-slate-500',  bg: 'bg-slate-500/8',    border: 'border-slate-500/15', dot: 'bg-slate-500',  label: 'En attente' },
-    in_progress: { color: 'text-amber-400',  bg: 'bg-amber-500/8',    border: 'border-amber-500/20', dot: 'bg-amber-400',  label: 'En cours...' },
-    done:        { color: 'text-violet-300', bg: 'bg-violet-500/8',   border: 'border-violet-500/20',dot: 'bg-violet-400', label: 'Terminé' },
-    error:       { color: 'text-red-400',    bg: 'bg-red-500/8',      border: 'border-red-500/20',   dot: 'bg-red-400',    label: 'Erreur' },
+  const cfg = {
+    pending:     { border: 'border-slate-700/40',   bg: 'bg-slate-900/60',    dot: 'bg-slate-600',   ping: false,  label: 'En attente',    labelColor: 'text-slate-500' },
+    in_progress: { border: 'border-amber-500/30',   bg: 'bg-amber-950/40',    dot: 'bg-amber-400',   ping: true,   label: 'En cours...',   labelColor: 'text-amber-400' },
+    done:        { border: 'border-emerald-500/25', bg: 'bg-emerald-950/30',  dot: 'bg-emerald-400', ping: false,  label: 'Livré ✓',       labelColor: 'text-emerald-400' },
+    error:       { border: 'border-red-500/25',     bg: 'bg-red-950/30',      dot: 'bg-red-400',     ping: false,  label: 'Erreur',        labelColor: 'text-red-400' },
   }[status];
 
+  const avatar = targetAgent?.avatar ?? '🤖';
+
   return (
-    <div className={`mt-2 rounded-xl border ${statusConfig.border} ${statusConfig.bg} overflow-hidden animate-fade-in transition-all duration-500`}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-white/5">
-        {/* Indicateur de statut */}
-        <div className="relative shrink-0">
-          <div className={`w-2.5 h-2.5 rounded-full ${statusConfig.dot}`} />
-          {status === 'in_progress' && (
-            <div className={`absolute inset-0 rounded-full ${statusConfig.dot} animate-ping opacity-60`} />
-          )}
+    <div className={`flex gap-2.5 animate-slide-up`}>
+      {/* Avatar de l'agent délégué */}
+      <div className="relative shrink-0 mt-0.5">
+        <div className={`w-8 h-8 rounded-full bg-[#1a2235] border ${cfg.border} flex items-center justify-center text-sm`}>
+          {avatar}
         </div>
-        <span className={`text-xs font-bold ${statusConfig.color}`}>
-          {total && total > 1 ? `Mission ${(index ?? 0) + 1}/${total}` : 'Délégation'}
-          {' · '}{statusConfig.label}
-        </span>
-        <div className="flex items-center gap-1.5 ml-1 text-[11px] text-slate-500">
-          <span>{fromAgent.avatar}</span>
-          <span className="text-slate-700">→</span>
-          <span>{targetAgent?.avatar ?? '🤖'} {delegation.agentName}</span>
-        </div>
+        {cfg.ping && (
+          <span className={`absolute inset-0 rounded-full ${cfg.dot} opacity-30 animate-ping`} />
+        )}
+        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${cfg.dot} border-2 border-[#111827]`} />
       </div>
 
-      {/* Brief */}
-      <div className="px-3.5 py-2 border-b border-white/5">
-        <p className="text-[10px] text-slate-600 mb-1 uppercase tracking-wider font-semibold">Brief</p>
-        <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 italic">"{delegation.task}"</p>
-      </div>
-
-      {/* Réponse */}
-      {status === 'in_progress' && (
-        <div className="px-3.5 py-2.5 flex items-center gap-2">
-          <span className="flex gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+      {/* Carte */}
+      <div className={`flex-1 rounded-2xl rounded-tl-sm border ${cfg.border} ${cfg.bg} overflow-hidden transition-all duration-500`}>
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3.5 py-2.5">
+          <span className="text-[11px] font-bold text-slate-300">
+            {delegation.agentName}
           </span>
-          <span className="text-xs text-amber-400/70 italic">{delegation.agentName} travaille sur le livrable...</span>
+          <span className="text-slate-600 text-[10px]">·</span>
+          <span className="text-[10px] text-slate-500">{delegation.agentRole}</span>
+          <span className={`ml-auto text-[11px] font-semibold ${cfg.labelColor}`}>{cfg.label}</span>
         </div>
-      )}
 
-      {status === 'done' && delegation.delegateMessage && (
-        <div className="px-3.5 py-2.5">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-              ✓ Livrable de {delegation.agentName}
-            </p>
-            <button onClick={() => setExpanded(v => !v)} className="text-[11px] text-slate-500 hover:text-violet-400 transition-colors">
-              {expanded ? 'Réduire ↑' : 'Voir ↓'}
-            </button>
+        {/* Brief */}
+        <div className="px-3.5 pb-2 border-t border-white/4">
+          <p className="text-[10px] text-slate-600 mt-2 mb-1 uppercase tracking-wider font-semibold">
+            Brief de {fromAgent.name}
+          </p>
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 italic">"{delegation.task}"</p>
+        </div>
+
+        {/* En cours */}
+        {status === 'in_progress' && (
+          <div className="px-3.5 pb-2.5 flex items-center gap-2">
+            <span className="flex gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </span>
+            <span className="text-xs text-amber-400/60 italic">prépare le livrable...</span>
           </div>
-          {expanded ? (
-            <div className="prose-dark text-xs text-slate-400 leading-relaxed max-h-64 overflow-y-auto">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{delegation.delegateMessage}</ReactMarkdown>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500 line-clamp-2">{delegation.delegateMessage.slice(0, 130)}…</p>
-          )}
-          {delegation.agentId && (
-            <Link href={`/chat/${delegation.agentId}`} className="mt-2 inline-flex text-[11px] text-violet-400/70 hover:text-violet-300 transition-colors">
-              Ouvrir le chat avec {delegation.agentName} →
-            </Link>
-          )}
-        </div>
-      )}
+        )}
 
-      {status === 'error' && (
-        <div className="px-3.5 py-2 text-xs text-red-400/70 italic">Impossible de contacter {delegation.agentName}</div>
-      )}
+        {/* Livrable terminé */}
+        {status === 'done' && delegation.delegateMessage && (
+          <div className="px-3.5 pb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] text-emerald-500/70 uppercase tracking-wider font-semibold">Livrable</span>
+              <button onClick={() => setExpanded(v => !v)} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+                {expanded ? 'Réduire ↑' : 'Voir le détail ↓'}
+              </button>
+            </div>
+            {expanded ? (
+              <div className="prose-dark text-xs text-slate-400 leading-relaxed max-h-64 overflow-y-auto border border-white/5 rounded-lg p-2 bg-black/20">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{delegation.delegateMessage}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 line-clamp-2">{delegation.delegateMessage.slice(0, 140)}…</p>
+            )}
+            {delegation.agentId && (
+              <Link href={`/chat/${delegation.agentId}`} className="mt-2 inline-flex text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+                Ouvrir le chat avec {delegation.agentName} →
+              </Link>
+            )}
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="px-3.5 pb-2 text-xs text-red-400/60 italic">Impossible de contacter {delegation.agentName}</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -168,13 +174,12 @@ export default function ChatPage() {
       const memories: Memory[] = await memRes.json();
       setMessages(
         memories
-          // Filtrer les prompts internes de délégation qui auraient pollué la mémoire avant le fix
           .filter(m => !(m.role === 'user' && m.content.startsWith('Mon équipe vient de terminer')))
           .filter(m => !(m.role === 'user' && m.content.startsWith('me confie cette mission')))
           .filter(m => !(m.role === 'user' && m.content.includes('me délègue cette mission')))
           .map(m => ({
             id:        m.id,
-            role:      m.role,
+            role:      m.role as MessageRole,
             content:   m.content,
             timestamp: m.created_at,
           })),
@@ -277,34 +282,44 @@ export default function ChatPage() {
       }
 
       const hasDelegations = data.delegations && data.delegations.length > 0;
-      const msgId = `assistant-${Date.now()}`;
 
-      // Afficher la réponse initiale avec les cartes en attente
+      // ── Étape 1 : réponse initiale du manager ──────────────────────────
       setMessages(prev => [...prev, {
-        id:          msgId,
-        role:        'assistant',
-        content:     data.message,
-        timestamp:   new Date().toISOString(),
-        delegations: hasDelegations
-          ? data.delegations.map((d: Delegation) => ({ ...d, status: 'pending' as DelegationStatus }))
-          : undefined,
+        id:        `assistant-${Date.now()}`,
+        role:      'assistant' as MessageRole,
+        content:   data.message,
+        timestamp: new Date().toISOString(),
       }]);
 
       if (!hasDelegations) return;
 
-      // ── Étape 2 : brief de chaque agent en parallèle (avec progress) ───
-      const updateDelegation = (agentName: string, patch: Partial<Delegation>) => {
-        setMessages(prev => prev.map(m => m.id !== msgId ? m : {
-          ...m,
-          delegations: m.delegations?.map(d =>
-            d.agentName === agentName ? { ...d, ...patch } : d,
-          ),
-        }));
+      // ── Étape 2 : injecter chaque agent comme message "delegation" ──────
+      const delegIds: Record<string, string> = {};
+      const now = Date.now();
+      (data.delegations as Delegation[]).forEach((d, i) => {
+        const id = `deleg-${now}-${i}`;
+        delegIds[d.agentName] = id;
+        setMessages(prev => [...prev, {
+          id,
+          role:       'delegation' as MessageRole,
+          content:    '',
+          timestamp:  new Date().toISOString(),
+          delegation: { ...d, status: 'pending' as DelegationStatus },
+        }]);
+      });
+
+      // helper pour mettre à jour une carte de délégation
+      const patchDeleg = (agentName: string, patch: Partial<Delegation>) => {
+        const id = delegIds[agentName];
+        setMessages(prev => prev.map(m =>
+          m.id !== id ? m : { ...m, delegation: { ...m.delegation!, ...patch } },
+        ));
       };
 
+      // ── Étape 3 : brief de chaque agent en parallèle ───────────────────
       const results = await Promise.all(
         (data.delegations as Delegation[]).map(async (d) => {
-          updateDelegation(d.agentName, { status: 'in_progress' });
+          patchDeleg(d.agentName, { status: 'in_progress' });
           try {
             const r = await fetch('/api/brief', {
               method:  'POST',
@@ -312,16 +327,16 @@ export default function ChatPage() {
               body: JSON.stringify({ fromAgentName: agent?.name, agentName: d.agentName, agentRole: d.agentRole, task: d.task }),
             });
             const result = await r.json();
-            updateDelegation(d.agentName, { status: 'done', delegateMessage: result.message, agentId: result.agentId, agentAvatar: result.agentAvatar });
+            patchDeleg(d.agentName, { status: 'done', delegateMessage: result.message, agentId: result.agentId, agentAvatar: result.agentAvatar });
             return { agentName: result.agentName ?? d.agentName, agentRole: result.agentRole ?? d.agentRole, message: result.message };
           } catch {
-            updateDelegation(d.agentName, { status: 'error' });
+            patchDeleg(d.agentName, { status: 'error' });
             return null;
           }
         }),
       );
 
-      // ── Étape 3 : synthèse du manager ──────────────────────────────────
+      // ── Étape 4 : synthèse du manager ──────────────────────────────────
       const validResults = results.filter(Boolean) as { agentName: string; agentRole: string; message: string }[];
       if (validResults.length === 0) return;
 
@@ -334,7 +349,7 @@ export default function ChatPage() {
 
       setMessages(prev => [...prev, {
         id:        `synth-${Date.now()}`,
-        role:      'assistant',
+        role:      'assistant' as MessageRole,
         content:   synthData.message ?? '(Synthèse indisponible)',
         timestamp: new Date().toISOString(),
       }]);
@@ -443,85 +458,83 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className={`flex gap-2.5 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 mt-5 ${
-              msg.role === 'user'
-                ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
-                : 'bg-[#1a2235] border border-[#1e2d4a]'
-            }`}>
-              {msg.role === 'user' ? 'D' : agent.avatar}
-            </div>
+        {messages.map(msg => {
+          // ── Message de délégation (carte agent en cours) ──────────────
+          if (msg.role === 'delegation' && msg.delegation) {
+            return (
+              <DelegationRow
+                key={msg.id}
+                delegation={msg.delegation}
+                fromAgent={agent!}
+                targetAgent={agents.find(a => a.name.toLowerCase() === msg.delegation!.agentName.toLowerCase()) ?? null}
+              />
+            );
+          }
 
-            <div className={`max-w-[72%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-              {/* Nom + rôle */}
-              <p className={`text-[11px] font-semibold px-1 ${
+          // ── Message normal (user / assistant) ─────────────────────────
+          return (
+            <div
+              key={msg.id}
+              className={`flex gap-2.5 animate-slide-up ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            >
+              {/* Avatar */}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 mt-5 ${
                 msg.role === 'user'
-                  ? 'text-slate-400 text-right'
-                  : `${deptColors[agent.department] ?? 'text-slate-400'}`
+                  ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold'
+                  : 'bg-[#1a2235] border border-[#1e2d4a]'
               }`}>
-                {msg.role === 'user' ? 'Davy — CEO' : `${agent.name} — ${agent.role}`}
-              </p>
-
-              {/* Bulle */}
-              <div className={`rounded-2xl px-4 py-3 ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-tr-sm'
-                  : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
-              }`}>
-                {msg.role === 'assistant' ? (
-                  <div className="prose-dark text-sm">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                )}
-                <div className={`flex items-center justify-between mt-2 gap-3`}>
-                  <p className={`text-xs ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  {/* Bouton téléchargement pour les messages avec du contenu technique */}
-                  {msg.role === 'assistant' && msg.content.includes('```') && (
-                    <button
-                      onClick={() => {
-                        const filename = `${agent.name.toLowerCase()}-livrable-${new Date(msg.timestamp).toISOString().slice(0,10)}.md`;
-                        const header = `# Livrable — ${agent.name} (${agent.role})\n_${new Date(msg.timestamp).toLocaleString('fr-FR')}_\n\n---\n\n`;
-                        const blob = new Blob([header + msg.content], { type: 'text/markdown' });
-                        const url  = URL.createObjectURL(blob);
-                        const a    = document.createElement('a');
-                        a.href = url; a.download = filename; a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors shrink-0"
-                      title="Télécharger en .md"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      .md
-                    </button>
-                  )}
-                </div>
+                {msg.role === 'user' ? 'D' : agent.avatar}
               </div>
 
-              {/* Threads de délégation auto-exécutés */}
-              {msg.delegations?.filter(d => d.autoExecuted).map((d, i) => (
-                <DelegationThread
-                  key={i}
-                  delegation={d}
-                  fromAgent={agent!}
-                  targetAgent={agents.find(a => a.name.toLowerCase() === d.agentName.toLowerCase()) ?? null}
-                  index={i}
-                  total={msg.delegations!.filter(x => x.autoExecuted).length}
-                />
-              ))}
+              <div className={`max-w-[72%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                <p className={`text-[11px] font-semibold px-1 ${
+                  msg.role === 'user' ? 'text-slate-400 text-right' : `${deptColors[agent.department] ?? 'text-slate-400'}`
+                }`}>
+                  {msg.role === 'user' ? 'Davy — CEO' : `${agent.name} — ${agent.role}`}
+                </p>
+
+                <div className={`rounded-2xl px-4 py-3 ${
+                  msg.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-tr-sm'
+                    : 'bg-[#1a2235] border border-[#1e2d4a] text-slate-200 rounded-tl-sm'
+                }`}>
+                  {msg.role === 'assistant' ? (
+                    <div className="prose-dark text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
+                  <div className="flex items-center justify-between mt-2 gap-3">
+                    <p className={`text-xs ${msg.role === 'user' ? 'text-blue-200' : 'text-slate-500'}`}>
+                      {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    {msg.role === 'assistant' && msg.content.includes('```') && (
+                      <button
+                        onClick={() => {
+                          const filename = `${agent.name.toLowerCase()}-livrable-${new Date(msg.timestamp).toISOString().slice(0,10)}.md`;
+                          const header = `# Livrable — ${agent.name} (${agent.role})\n_${new Date(msg.timestamp).toLocaleString('fr-FR')}_\n\n---\n\n`;
+                          const blob = new Blob([header + msg.content], { type: 'text/markdown' });
+                          const url  = URL.createObjectURL(blob);
+                          const a    = document.createElement('a');
+                          a.href = url; a.download = filename; a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                        title="Télécharger en .md"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        .md
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {sending && (
           <div className="flex gap-2.5 animate-fade-in">
