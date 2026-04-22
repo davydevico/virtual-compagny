@@ -367,25 +367,36 @@ export default function ChatPage() {
         ));
       };
 
-      // ── Étape 3 : brief de chaque agent en parallèle ───────────────────
-      const results = await Promise.all(
-        (data.delegations as Delegation[]).map(async (d) => {
-          patchDeleg(d.agentName, { status: 'in_progress' });
-          try {
-            const r = await fetch('/api/brief', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fromAgentName: agent?.name, agentName: d.agentName, agentRole: d.agentRole, task: d.task }),
-            });
-            const result = await r.json();
-            patchDeleg(d.agentName, { status: 'done', delegateMessage: result.message, agentId: result.agentId, agentAvatar: result.agentAvatar });
-            return { agentName: result.agentName ?? d.agentName, agentRole: result.agentRole ?? d.agentRole, message: result.message };
-          } catch {
-            patchDeleg(d.agentName, { status: 'error' });
-            return null;
+      // ── Étape 3 : brief des agents par paquets de 2 (évite timeout Netlify) ─
+      const briefOne = async (d: Delegation, attempt = 1): Promise<{ agentName: string; agentRole: string; message: string } | null> => {
+        try {
+          const r = await fetch('/api/brief', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ fromAgentName: agent?.name, agentName: d.agentName, agentRole: d.agentRole, task: d.task }),
+          });
+          if (!r.ok && attempt < 2) {
+            await new Promise(res => setTimeout(res, 2000));
+            return briefOne(d, attempt + 1);
           }
-        }),
-      );
+          const result = await r.json();
+          if (result.error) throw new Error(result.error);
+          patchDeleg(d.agentName, { status: 'done', delegateMessage: result.message, agentId: result.agentId, agentAvatar: result.agentAvatar });
+          return { agentName: result.agentName ?? d.agentName, agentRole: result.agentRole ?? d.agentRole, message: result.message };
+        } catch {
+          patchDeleg(d.agentName, { status: 'error' });
+          return null;
+        }
+      };
+
+      // Lancer par paquets de 2
+      const delegList = data.delegations as Delegation[];
+      const results: (ReturnType<typeof briefOne> extends Promise<infer T> ? T : never)[] = [];
+      for (let i = 0; i < delegList.length; i += 2) {
+        const batch = delegList.slice(i, i + 2);
+        const batchResults = await Promise.all(batch.map(d => briefOne(d)));
+        results.push(...batchResults);
+      }
 
       // ── Étape 4 : synthèse du manager ──────────────────────────────────
       const validResults = results.filter(Boolean) as { agentName: string; agentRole: string; message: string }[];

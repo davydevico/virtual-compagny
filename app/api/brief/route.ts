@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
 
     const response = await callAgent(
       target.id,
-      `${fromAgentName} me confie cette mission :\n\n"${task}"\n\nJe fournis un livrable concret, complet et immédiatement utilisable.`,
+      `${fromAgentName} me confie : "${task}"\n\nJe livre un plan d'action concret (max 400 mots) avec le code ou les étapes clés.`,
       undefined,
       undefined,
-      { saveUserMessage: false }, // brief interne, ne pas polluer la mémoire CEO
+      { saveUserMessage: false, maxTokens: 1024 },
     );
 
     return NextResponse.json({

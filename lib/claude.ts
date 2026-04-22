@@ -43,7 +43,7 @@ export async function callAgent(
   userMessage:  string,
   projectId?:   string,
   extraContext?: string,
-  options?: { saveUserMessage?: boolean },
+  options?: { saveUserMessage?: boolean; maxTokens?: number },
 ): Promise<AgentResponse> {
   const agent = await getAgentById(agentId);
   if (!agent) throw new Error(`Agent ${agentId} introuvable`);
@@ -58,7 +58,7 @@ export async function callAgent(
 
   const response = await anthropic.messages.create({
     model:      MODEL,
-    max_tokens: 2048,
+    max_tokens: options?.maxTokens ?? 2048,
     system:     systemPrompt,
     messages,
   });
